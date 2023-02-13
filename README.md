@@ -47,3 +47,45 @@ docker run --rm -v "${PWD}:/opt/trolleway_wikidata" -v "${PWD}/wikibase-cli:/roo
 python3 script.py clone
 python3 script.py push
 ```
+
+
+# SQL helper queries
+
+todo: automate and move to model.py
+
+```
+UPDATE wikivoyagemonuments SET address='Москва, ' || address;
+UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Москве, памятник архитектуры' WHERE name not like '%града%';
+UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Москве. Памятник архитектуры.' WHERE name like '%града%';
+
+UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Moscow' WHERE name not like '%града%';
+UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Moscow.' WHERE name like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%Ворота%' and name not like '%оротами%';
+
+
+
+
+
+UPDATE wikivoyagemonuments SET address='Павлово, ' || address;
+UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Павлово, памятник архитектуры' WHERE name not like '%града%';
+UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Павлово. Памятник архитектуры.' WHERE name like '%града%';
+
+UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Pavlovo' WHERE name not like '%града%';
+UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Pavlovo.' WHERE name like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%Ворота%' and name not like '%оротами%';
+
+```
