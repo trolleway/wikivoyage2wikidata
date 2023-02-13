@@ -1,0 +1,9 @@
+{
+  "instance": "https://www.wikidata.org",
+  "credentials": {
+    "https://www.wikidata.org": {
+      "username": "",
+      "password": ""
+    }
+  }
+}
