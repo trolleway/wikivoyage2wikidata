@@ -374,14 +374,17 @@ values
         sql = '''
 UPDATE wikivoyagemonuments SET lat=Null WHERE lat='';
 
-           
+/*           
 UPDATE wikivoyagemonuments SET name4wikidata = REPLACE(REPLACE(address,',',''),'строение ','c') || ', ' || name; 
 UPDATE wikivoyagemonuments SET address4wikidata = municipality || ' ' || address;
 UPDATE wikivoyagemonuments SET protection4wikidata='Q105835744' WHERE protection='Р' ;  
 UPDATE wikivoyagemonuments SET protection4wikidata='Q23668083' WHERE protection='Ф' ;  
 UPDATE wikivoyagemonuments SET protection4wikidata='Q105835774' WHERE protection='В' ; 
+UPDATE wikivoyagemonuments SET protection4wikidata='Q105835766' WHERE protection='М' ; 
+UPDATE wikivoyagemonuments SET protection4wikidata='Q105835782' WHERE protection='Н' ; 
+UPDATE wikivoyagemonuments SET protection4wikidata='Q105835782' WHERE protection='' or protection is Null ; 
 UPDATE wikivoyagemonuments SET instance_of2='Q41176' ; 
-
+*/
 
             '''
             
@@ -527,6 +530,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
     dbid,
     page,
     instance_of2,
+    name AS name_wikivoyage,
     knid
     FROM wikivoyagemonuments
                 where dbid =?
@@ -548,12 +552,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         "P31": "Q2319498",
         "P17": "Q159",
         "P1435": {
-          "value": "Q105835744",
-          "references": [
-            {
-              "P248": "Q7382189"
-            }
-          ]
+          "value": "Q105835744"
         },
         "P131": "Q18789448",
         "P625": {
@@ -582,9 +581,14 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
                 wd_object['claims']['P1435']['references']=({'P248':'Q7382189'}) #in EGROKN
                 wd_object['claims']['P5381']=monument['EGROKN'] #link to EGROKN number
             else: #refrenced in closed website kulturnoe-nasledie.ru
-                wd_object['claims']['P1435']['references']=({'P248':'Q50339681'})
+                # не пойму когда оно есть, когда нет, перемудрили wd_object['claims']['P1435']['references']=({'P248':'Q50339681'})
                 # 	kulturnoe-nasledie.ru ID
                 wd_object['claims']['P1483']=monument['knid'] #link to knid
+            #WLM code
+            wd_object['claims']['P2186']={'value':'RU-'+monument['knid'],
+                'qualifiers': {'P1810':monument['name_wikivoyage']}, #object name in wikivoyage list, like "Жилой дом"
+                'references': {'P854':'https://ru-monuments.toolforge.org/wikivoyage.php?id='+monument['knid']},
+                }
             
             wd_object['claims']['P131']=monument['munid'] #city
             if monument['address'] is not None and len(monument['address'])>4:  #address
@@ -605,7 +609,6 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
                 json.dump(wd_object, outfile)
                 
             self.pp.pprint(wd_object)
-
             print(' wb create-entity ./temp_json_data.json')
             time.sleep(5)
             cmd = ['wb', 'create-entity', './temp_json_data.json']
