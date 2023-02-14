@@ -308,14 +308,14 @@ and wkt_geom is Null;
 
         for obj in wikivoyage_objects:
 
-            obj['WKT_GEOMETRY']=wkt.dumps(Point(obj['long'] or 0,obj['lat'] or 0),rounding_precision=5)
 
             
             sql='''INSERT INTO wikivoyagemonuments 
             (
 type,
 status,
-WKT_GEOMETRY, 
+lat,
+long,
 precise,
 name,
 knid,
@@ -339,7 +339,8 @@ page)
 values
 (:type,
 :status,
-:WKT_GEOMETRY,
+:lat,
+:long,
 :precise,
 :name,
 :knid,
@@ -431,7 +432,6 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         sql = '''SELECT page, knid, dbid, entity_description FROM wikivoyagemonuments WHERE ready_to_push=1'''
         self.cur.execute(sql)
         monuments = self.cur.fetchall()
-        assert len(monuments)>0
         for monument in monuments:
             check, reason = self.is_wikivoyage_allow_add_wikidata(monument['page'],wikivoyageid=monument['knid'])
             if not check:
@@ -522,7 +522,8 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
     address,
     address_source,
     protection4wikidata,
-    WKT_GEOMETRY,
+    lat,long,
+    'POINT (' || long || ' '||lat||')' AS wkt_geom,
     munid,
     knid_new AS EGROKN,
     commonscat,
