@@ -569,7 +569,10 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
             wd_object = json.loads(wikidata_template)
             wd_object['labels']['ru']=monument['name4wikidata']
             wd_object['descriptions']['ru']=monument['entity_description']
-            if len(monument['alias_ru'])>1:  wd_object['aliases']={'ru':(monument['alias_ru'])}
+            wd_object['aliases'] = {'ru':list()}
+            if len(monument['alias_ru'])>1:  wd_object['aliases']['ru'].append(monument['alias_ru'])
+            if monument['address'] is not None and len(monument['address'])>4:  wd_object['aliases']['ru'].append(monument['address'])
+            if monument['name_wikivoyage'] is not None and len(monument['name_wikivoyage'])>3:  wd_object['aliases']['ru'].append(monument['name_wikivoyage'])
             if monument['description4wikidata_en'] is not None and len(monument['description4wikidata_en'])>5: wd_object['descriptions']['en']=monument['description4wikidata_en']
             
             wd_object['claims']['P31']=('Q2319498',monument['instance_of2']) #landmark #building_or_something_other
@@ -611,6 +614,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
             self.pp.pprint(wd_object)
             print(' wb create-entity ./temp_json_data.json')
             time.sleep(5)
+            
             cmd = ['wb', 'create-entity', './temp_json_data.json']
             response = subprocess.run(cmd, capture_output=True)  
             if '"success":1' not in response.stdout.decode():
