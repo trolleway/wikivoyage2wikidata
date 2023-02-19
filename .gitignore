@@ -155,3 +155,9 @@ cython_debug/
 #.idea/
 wikivoyage_page_code.txt
 buildings.spatialite.sqlite
+apicache-py3
+*.csv
+pywikibot-Svetlov_Artem.lwp
+throttle.ctrl
+user-config.py
+*.gpkg

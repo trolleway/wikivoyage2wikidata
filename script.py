@@ -19,18 +19,23 @@ def argparser_prepare(pagename):
             epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n page set to"+pagename,
             formatter_class=PrettyFormatter)  
     
-    parser.add_argument('mode', type=str, choices=['clone', 'push'])    
+    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all'])    
   
     return parser
     
-pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Садов._кольца_до_Фрунзенск.,_Лужнецк.,_Новодев.,_Саввинск.,_Ростов._и_Смолен._наб.'
-#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/За_Садовым_кольцом_от_просп._Мира_до_Стар._Басманной_и_Спартаковской_ул.'
+#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Садов._кольца_до_Фрунзенск.,_Лужнецк.,_Новодев.,_Саввинск.,_Ростов._и_Смолен._наб.'
+pagename = 'Культурное_наследие_России/Москва/Центральный_округ/За_Садовым_кольцом_от_просп._Мира_до_Стар._Басманной_и_Спартаковской_ул.'
+pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Тверской_до_Бол._Лубянки'
+pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Бол._Полянки_до_Пятницкой'
 
 parser = argparser_prepare(pagename)
 args = parser.parse_args()
 
 if args.mode == 'clone':
-    model.wikivoyage2db(pagename)
+    model.wikivoyage_page_import_heritage(pagename)
+    
+if args.mode == 'clone-all':
+    model.wikivoyage_bulk_import_heritage()
 
 if args.mode == 'push':
     model.wikivoyage_push_wikidata()

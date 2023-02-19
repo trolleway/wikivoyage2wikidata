@@ -12,6 +12,8 @@ import wikitextparser as wtp
 import urllib.request
 import time
 
+import pywikibot
+
 class Model():
 
 
@@ -283,33 +285,9 @@ and wkt_geom is Null;
         assert sys.getsizeof(self.wiki_pages_cache) > 250
 
         return txt
-    def wikivoyage2db(self,pagename):
         
-        sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
-        self.cur.execute(sql)
-        monuments = self.cur.fetchone()
-        
-        if monuments['cnt'] > 0:
-            print('you has records in database ready to push. Looks like command to import is mistake. For re-import: run manual command DELETE FROM wikivoyagemonuments')
-            return
-        
-        page_content = self.wikipedia_get_page_content(pagename)
-        
-        #delete from db records of current page
-        sql = 'DELETE FROM wikivoyagemonuments WHERE page=?'
-        self.cur.execute(sql,(pagename,))
-        sql = 'DELETE FROM wikivoyagemonuments'
-        self.cur.execute(sql)
-        
-
-        
-        wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
-        
-
+    def wikivoyage2db_v2(self,wikivoyage_objects,pagename):
         for obj in wikivoyage_objects:
-
-
-            
             sql='''INSERT INTO wikivoyagemonuments 
             (
 type,
@@ -366,8 +344,55 @@ values
             self.cur.execute(sql,obj)
             self.con.commit()
             
+    def wikivoyage_page_import_heritage(self,pagename):
+        sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
+        self.cur.execute(sql)
+        monuments = self.cur.fetchone()
+        
+        if monuments['cnt'] > 0:
+            print('you has records in database ready to push. Looks like command to import is mistake. For re-import: run manual command DELETE FROM wikivoyagemonuments')
+            return
+            
+        page_content = self.wikipedia_get_page_content(pagename)
+        
+        #delete from db records of current page
+        sql = 'DELETE FROM wikivoyagemonuments WHERE page=?'
+        self.cur.execute(sql,(pagename,))
+        sql = 'DELETE FROM wikivoyagemonuments'
+        self.cur.execute(sql)
 
-            self.wikivoyage_prepare_batch()
+        wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+      
+        self.wikivoyage2db_v2(wikivoyage_objects,pagename)
+        self.wikivoyage_prepare_batch()
+    def wikivoyage_bulk_import_heritage(self):
+        import pywikibot
+        from pywikibot import pagegenerators
+
+        sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
+        self.cur.execute(sql)
+        monuments = self.cur.fetchone()
+        
+        if monuments['cnt'] > 0:
+            print('you has records in database ready to push. Looks like command to import is mistake. For re-import: run manual command DELETE FROM wikivoyagemonuments')
+            return     
+            
+        sql = 'DELETE FROM wikivoyagemonuments'
+        self.cur.execute(sql)    
+        site = pywikibot.Site('ru', 'wikivoyage')
+        pages = pagegenerators.PrefixingPageGenerator('ru:Культурное наследие России/')
+        for page in pages:
+            print(page)
+            page_content = page.text
+            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename=str(page).replace('ru:',''))
+            self.wikivoyage2db_v2(wikivoyage_objects,pagename=str(page).replace('ru:',''))
+            
+        
+
+    
+    def wikivoyage2db(self,pagename):
+        pass
+
         
         
     def wikivoyage_prepare_batch(self):
@@ -429,7 +454,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         #diry generate list of db eitities
         monuments_list = list()
 
-        sql = '''SELECT page, knid, dbid, entity_description FROM wikivoyagemonuments WHERE ready_to_push=1'''
+        sql = '''SELECT page, knid, dbid, entity_description, name, name4wikidata FROM wikivoyagemonuments WHERE ready_to_push=1'''
         self.cur.execute(sql)
         monuments = self.cur.fetchall()
         for monument in monuments:
@@ -451,16 +476,32 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         with open('wikivoyage_page_code.txt', 'w') as file:
             file.write(page_content)
         
+        names4editnote = list()
         for monument in monuments_list:
             #print(monument)
             print('--- push to wikidata '+str(monument['dbid']))
             new_wikidata_id = self.wikivoyage_push_wikidata_internal(monument['dbid'])
+            names4editnote.append(monument['name4wikidata'][:30]+' '+' '.join(monument['name'].split()[:8]))
+            
             self.add_wikidata_id_to_wikivoyage(
                 monument['page'],
                 wikivoyageid=monument['knid'],
                 wikidataid=new_wikidata_id, 
                 filename='wikivoyage_page_code.txt',
                 )
+        wiki_edit_message = 'копирование в wikidata: '+', '.join(names4editnote)
+        print(wiki_edit_message)
+        print('change wikivoyage page')
+        site = pywikibot.Site('ru', 'wikivoyage')
+        page = pywikibot.Page(site, monument['page'])
+        
+        with open('wikivoyage_page_code.txt', 'r') as file:
+            pagetext_new = file.read()
+        page.text = pagetext_new
+        page.save(wiki_edit_message, minor=False)
+        print('page updated')
+            
+
             
         
     def wikivoyage_push_wikidata_once(self,dbid):
@@ -500,7 +541,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         sql = '''SELECT COUNT(*) as cnt FROM wikivoyagemonuments 
         WHERE 
         dbid=?  
-        AND type not in ('archeology','monument')
+
         AND lat is not Null 
         AND precise='yes' '''
         self.cur.execute(sql,(dbid,))
