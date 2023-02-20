@@ -19,7 +19,7 @@ def argparser_prepare(pagename):
             epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n page set to"+pagename,
             formatter_class=PrettyFormatter)  
     
-    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all'])    
+    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo'])    
   
     return parser
     
@@ -39,6 +39,8 @@ if args.mode == 'clone-all':
 
 if args.mode == 'push':
     model.wikivoyage_push_wikidata()
+if args.mode == 'push-geo':
+    model.wikivoyage_push_wikidata_geo()
 
 
 #model.sync_pull_one()

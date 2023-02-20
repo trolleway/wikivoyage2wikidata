@@ -39,7 +39,7 @@ docker build --tag wikivoyage2wikidata:1.0 .
 # Run
 
 ```
-docker run --rm -v "${PWD}:/opt/trolleway_wikidata" -v "${PWD}/wikibase-cli:/root/.config/wikibase-cli" -v "${PWD}/wikibase-cache:/root/.cache/wikibase-cli" -it trolleway_wikidata:1.0
+docker run --rm -v "${PWD}:/opt/trolleway_wikidata" -v "${PWD}/wikibase-cli:/root/.config/wikibase-cli" -v "${PWD}/wikibase-cache:/root/.cache/wikibase-cli" -it wikivoyage2wikidata:1.0
 
 ```
 

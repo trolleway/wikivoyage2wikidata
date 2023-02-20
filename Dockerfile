@@ -3,7 +3,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
-jq python3-pip nodejs npm
+jq python3-pip nodejs npm gdal-bin proj-data
+
 
 
 RUN npm install -g wikibase-cli

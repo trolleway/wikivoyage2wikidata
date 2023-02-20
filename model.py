@@ -10,7 +10,8 @@ from shapely.geometry import Point
 
 import wikitextparser as wtp
 import urllib.request
-import time
+import time, datetime
+from osgeo import ogr, osr, gdal
 
 import pywikibot
 
@@ -362,9 +363,59 @@ values
         self.cur.execute(sql)
 
         wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
-      
+
+        self.wikivoyage2gdal(wikivoyage_objects,pagename,os.path.join('geodata','points.gpkg'))
+        
         self.wikivoyage2db_v2(wikivoyage_objects,pagename)
+        
         self.wikivoyage_prepare_batch()
+    
+    def wikivoyage2gdal(self,wikivoyage_objects,pagename,filename):
+        #create vector layer for edit in QGIS
+        
+        fields_blacklist=('lat','long')
+        
+        gdal.UseExceptions()
+
+        driver = ogr.GetDriverByName('GPKG')
+        if os.path.exists(filename):
+             driver.DeleteDataSource(filename)
+        print(filename)
+        ds = driver.CreateDataSource(filename)
+        assert ds is not None
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
+        assert len(wikivoyage_objects)>0
+        
+        for fieldname in wikivoyage_objects[0].keys():
+            if fieldname in fields_blacklist: continue
+            fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
+            fld.SetWidth(9999)
+            layer.CreateField(fld)
+
+        layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
+
+        for row in wikivoyage_objects:
+            feature = ogr.Feature(layer.GetLayerDefn())
+            for fieldname in wikivoyage_objects[0].keys():
+                feature.SetField(fieldname.replace('-','_'),row[fieldname])
+                #feature.SetField(fieldname.replace('-','_'),'0')
+            #print(float(row['lat']), float(row['long']))
+            point = ogr.Geometry(ogr.wkbPoint)
+            try:
+                point.AddPoint(float(row['long']), float(row['lat']))
+                feature.SetGeometry(point)
+            except:
+                pass
+                #empty geom
+            layer.CreateFeature(feature)
+            feature = None
+            
+        ds = None
+        
+
+        
     def wikivoyage_bulk_import_heritage(self):
         import pywikibot
         from pywikibot import pagegenerators
@@ -449,6 +500,75 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 filename='wikivoyage_page_code.txt',
                 )
             
+    def wikivoyage_push_wikidata_geo(self):
+        
+        changeset = self.gpkg2changeset()
+        assert changeset is not None
+        assert len(changeset)>0
+
+        
+        #check if all records from one page
+        pagename = changeset[0]['page']
+        for obj in changeset:
+            if obj['page'] != pagename:
+                raise ValueError('all records in GPKG must have same "page" value')
+            assert obj.get('lat') is not None
+            assert obj.get('long') is not None
+        
+        page_content = self.wikipedia_get_page_content(pagename)
+        for obj in changeset:
+            page_content = self.change_value_wiki(
+            page_content,
+            knid = obj['knid'],
+            fieldname = 'lat',
+            value = obj['lat']
+            )
+            page_content = self.change_value_wiki(
+            page_content,
+            knid = obj['knid'],
+            fieldname = 'long',
+            value = obj['long']
+            )   
+
+            
+         
+        with open('wikivoyage_page_code.txt', 'w') as file:
+            file.write(page_content)
+        # push to wikivoyage
+        site = pywikibot.Site('ru', 'wikivoyage')
+        page = pywikibot.Page(site, pagename)
+        
+        wiki_edit_message = 'Уточнение координат'
+        page.text = page_content
+        page.save(wiki_edit_message, minor=False)
+        print('page updated')
+        
+        
+    def gpkg2changeset(self) -> list :
+        # read gpkg, get features with commit=1, return changeset list
+        filename = os.path.join('geodata','points.gpkg')
+        assert os.path.isfile(filename)
+        ds = gdal.OpenEx(filename,gdal.GA_ReadOnly)
+        if ds is None:
+            raise IOError(filename + 'prorably locked. Remove this layer from QGIS or close QGIS')
+        layer = ds.GetLayer()
+        layer.SetAttributeFilter(''' "commit"=1 ''')
+        if layer.GetFeatureCount() <1:
+            print('in '+filename+' not found features with commit=1 value')
+            return
+        changeset=list()
+        for feature in layer:
+            geom = feature.GetGeometryRef()
+            changeset.append({
+                'knid':feature.GetField('knid'),
+                'page':feature.GetField('page'),
+                'lat':round(geom.GetY(),5),
+                'long':round(geom.GetX(),5),
+                })
+        ds = None
+        
+        return changeset
+    
     def wikivoyage_push_wikidata(self):
     
         #diry generate list of db eitities
@@ -690,7 +810,41 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         #add to wikidata failed
         quit()
                 
-            
+    
+    def change_value_wiki(self,page_content,knid,fieldname,value) -> str:
+        #change/add one value  in wiki page code
+        
+        # search id in page
+        id_position = page_content.find('knid= '+knid)
+        if id_position == -1: id_position = page_content.index('knid='+wikivoyageid)
+        # search prev {{
+        template_start_position = page_content[0:id_position].rindex('{{')
+        # search next }}
+        template_end_position = page_content[template_start_position:].index('}}')+template_start_position
+        # search target field
+
+        assert template_start_position > 0
+        assert template_end_position > 0
+        assert template_end_position > template_start_position
+        
+
+        field_pos = page_content[template_start_position:template_end_position].index(fieldname)+template_start_position
+        
+        # search '=' position of target field
+        field_value_pos = page_content[field_pos:template_end_position].index('=')+field_pos
+
+        
+        #search end of field and start of next field
+        field_pos_end = page_content[field_pos:template_end_position].index('|')+field_pos
+        assert template_end_position > field_pos >  template_start_position 
+        assert field_pos_end > field_pos
+        # add code
+        
+        page_content = page_content[:field_pos] + ''+fieldname+'= '+str(value) +' '+ page_content[field_pos_end:]
+        
+        return page_content
+        
+        
     def add_wikidata_id_to_wikivoyage(self,pagename,wikivoyageid, wikidataid, filename=None):
         # add wikidata id to one record in wikivoyage page code
         # if filename is none: download page from server, save new text in text file
@@ -819,167 +973,13 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
             wikivoyage_objects[idx]['page']=pagename
             
             for field in fields:
-                wikivoyage_objects[idx][field.replace('-','_')]=wikivoyage_objects[idx].get(field)    
+                wikivoyage_objects[idx][field.strip().replace('-','_')]=wikivoyage_objects[idx].get(field)  
+                if '-' in field: wikivoyage_objects[idx].pop(field, None)
         
         return wikivoyage_objects
      
      
-    def waste(self):
-        sql='''INSERT INTO wikivoyagemonuments 
-            (
-type,
-status,
-lat,
-long,
-precise,
-name,
-knid,
-knid_new,
-region,
-district,
-municipality,
-munid,
-address,
-year,
-author,
-description,
-image,
-wdid,
-wiki,
-commonscat,
-protection,
-link,
-document,
-page)
-values
-(
-'{strtype}', '{status}', '{lat}', '{long}', '{precise}', '{name}', '{knid}', '{knid_new}', '{region}', '{district}', 
-'{municipality}', '{munid}', '{address}', '{year}', '{author}', '{description}', '{image}', 
-'{wdid}', '{wiki}', '{commonscat}', '{protection}', '{link}', '{document}',  '{page}' 
-);
-'''
-        sql = sql.format(
-        strtype=obj.get('type',''),
-        status=obj.get('status',''),
-        lat=obj.get('lat',''),
-        long=obj.get('long',''),
-        precise=obj.get('precise',''),
-        name=obj.get('name',''),
-        knid=obj.get('knid',''),
-        knid_new=obj.get('knid-new',''),
-        region=obj.get('region',''),
-        district=obj.get('district',''),
-        municipality=obj.get('municipality',''),
-        munid=obj.get('munid',''),
-        address=obj.get('address',''),
-        year=obj.get('year',''),
-        author=obj.get('author',''),
-        description=obj.get('description',''),
-        image=obj.get('image',''),
-        wdid=obj.get('wdid',''),
-        wiki=obj.get('wiki',''),
-        commonscat=obj.get('commonscat',''),
-        protection=obj.get('protection',''),
-        link=obj.get('link',''),
-        document=obj.get('document',''),
-        page=pagename)
-        print(sql)
-        #print(obj)
-        self.cur.execute(sql)
-        self.con.commit()
-        
-        
-        #dbeaver cant upgrade records from this view, but can update records just from select
-        create_view_sql = '''
-DROP VIEW IF EXISTS buildings_edit_view; -- "OR REPLACE"
-CREATE VIEW buildings_edit_view AS 
-        select 
-ready_to_push,        
-'POINT (' || long || ' '||lat||')' AS wkt_geom,
-name4wikidata,
-alias_ru,
-entity_description,
-description4wikidata_en,
-address,
-address_source,
-protection4wikidata,
-lat,long,
-munid,
-knid_new AS EGROKN,
-commonscat,
-dbid,
-page,
-instance_of2,
-knid
-FROM wikivoyagemonuments
-            where wdid = '' 
-            AND type not in ('archeology','monument')
-            AND lat is not Null
-            AND precise='yes'
-            AND status not in ('destroyed')
-            ;
-            '''
-        self.cur.executescript(create_view_sql)
-        
-        
-    def waste_data_tuning(self):
-        '''
-        UPDATE wikivoyagemonuments SET address='Москва, ' || address;
-UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Москве, памятник архитектуры' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Москве. Памятник архитектуры.' WHERE name like '%града%';
-
-UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Moscow' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Moscow.' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%Ворота%' and name not like '%оротами%';
-
-
-
-UPDATE wikivoyagemonuments SET name4wikidata = REPLACE(REPLACE(address,',',''),'строение ','c') ; 
-UPDATE wikivoyagemonuments SET address4wikidata = municipality || ' ' || address;
-UPDATE wikivoyagemonuments SET protection4wikidata='Q105835744' WHERE protection='Р' ;  
-UPDATE wikivoyagemonuments SET protection4wikidata='Q23668083' WHERE protection='Ф' ;  
-UPDATE wikivoyagemonuments SET protection4wikidata='Q105835774' WHERE protection='В' ; 
-UPDATE wikivoyagemonuments SET protection4wikidata='Q105835766' WHERE protection='М' ; 
-UPDATE wikivoyagemonuments SET protection4wikidata='Q105835782' WHERE protection='Н' ; 
-UPDATE wikivoyagemonuments SET protection4wikidata='Q105835782' WHERE protection='' or protection is Null ; 
-UPDATE wikivoyagemonuments SET instance_of2='Q41176' ; 
-
-UPDATE wikivoyagemonuments SET address='Богородск, ' || address;
-
-UPDATE
-  wikivoyagemonuments
-SET entity_description = name || CASE 
-	WHEN name like '%града%' THEN ' в Богородске. Памятник архитектуры.' 
-	WHEN name like '%орота%' THEN ' в Богородске. Памятник архитектуры.' 
-	ELSE '. Историческое здание в Богородске, памятник архитектуры' END;
-
-UPDATE
-  wikivoyagemonuments
-SET description4wikidata_en = CASE 
-	WHEN name like '%града%' THEN 'Fence of historical building in Bogorodsk' 
-	WHEN name like '%орота%' THEN 'Gates in Bogorodsk' 
-	ELSE 'Historical building in Bogorodsk' END;
-
-
-
-UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Bogorodsk' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Bogorodsk.' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%орота%' and name not like '%града%';
-'''
+    
 if __name__ == "__main__":
     '''
     model = Model()
