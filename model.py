@@ -388,20 +388,39 @@ values
         layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
         assert len(wikivoyage_objects)>0
         
+        layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
+
+        
+        fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
+        fld.SetWidth(9999)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
+        fld.SetWidth(9999)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('link_snow',ogr.OFTString)
+        fld.SetWidth(9999)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('no_geo',ogr.OFTInteger)
+        fld.SetWidth(1)
+        layer.CreateField(fld)
+        
         for fieldname in wikivoyage_objects[0].keys():
             if fieldname in fields_blacklist: continue
             fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
             fld.SetWidth(9999)
             layer.CreateField(fld)
 
-        layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
 
         for row in wikivoyage_objects:
             feature = ogr.Feature(layer.GetLayerDefn())
             for fieldname in wikivoyage_objects[0].keys():
-                feature.SetField(fieldname.replace('-','_'),row[fieldname])
+                feature.SetField(fieldname.replace('-','_'),row.get(fieldname))
                 #feature.SetField(fieldname.replace('-','_'),'0')
             #print(float(row['lat']), float(row['long']))
+            feature.SetField('link_wikivoyage','https://ru.wikivoyage.org/wiki/'+row['page']+'#'+row['knid'])
+            feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
+            if 'Q' in row['wdid']: feature.SetField('link_wikidata','https://www.wikidata.org/wiki/'+row['wdid'])
+            if row['long'] == '':  feature.SetField('no_geo',1)
             point = ogr.Geometry(ogr.wkbPoint)
             try:
                 point.AddPoint(float(row['long']), float(row['lat']))
@@ -516,6 +535,10 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             assert obj.get('long') is not None
         
         page_content = self.wikipedia_get_page_content(pagename)
+        
+        objects = self.wikivoyagelist2python(page_content,pagename)
+        names4editnote = list()
+        
         for obj in changeset:
             page_content = self.change_value_wiki(
             page_content,
@@ -528,7 +551,19 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             knid = obj['knid'],
             fieldname = 'long',
             value = obj['long']
-            )   
+            )
+            page_content = self.change_value_wiki(
+            page_content,
+            knid = obj['knid'],
+            fieldname = 'precise',
+            value = 'yes'
+            )
+            
+            #changeset message
+            for obj_full in objects:
+                if obj_full['knid']==obj['knid']:
+                    names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
+            
 
             
          
@@ -538,7 +573,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         site = pywikibot.Site('ru', 'wikivoyage')
         page = pywikibot.Page(site, pagename)
         
-        wiki_edit_message = 'Уточнение координат'
+        wiki_edit_message = 'Координаты '+', '.join(names4editnote)
         page.text = page_content
         page.save(wiki_edit_message, minor=False)
         print('page updated')
@@ -619,10 +654,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             pagetext_new = file.read()
         page.text = pagetext_new
         page.save(wiki_edit_message, minor=False)
-        print('page updated')
-            
-
-            
+        print('page updated')           
         
     def wikivoyage_push_wikidata_once(self,dbid):
     
@@ -816,7 +848,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         
         # search id in page
         id_position = page_content.find('knid= '+knid)
-        if id_position == -1: id_position = page_content.index('knid='+wikivoyageid)
+        if id_position == -1: id_position = page_content.index('knid='+knid)
         # search prev {{
         template_start_position = page_content[0:id_position].rindex('{{')
         # search next }}
@@ -842,8 +874,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         
         page_content = page_content[:field_pos] + ''+fieldname+'= '+str(value) +' '+ page_content[field_pos_end:]
         
-        return page_content
-        
+        return page_content     
         
     def add_wikidata_id_to_wikivoyage(self,pagename,wikivoyageid, wikidataid, filename=None):
         # add wikidata id to one record in wikivoyage page code
@@ -942,29 +973,29 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
             
         # sanitize input for db
         fields=(
-'type',
-'status',
-'lat',
-'long',
-'precise',
-'name',
-'knid',
-'knid-new',
-'region',
-'district',
-'municipality',
-'munid',
-'address',
-'year',
-'author',
-'description',
-'image',
-'wdid',
-'wiki',
-'commonscat',
-'protection',
-'link',
-'document')
+        'type',
+        'status',
+        'lat',
+        'long',
+        'precise',
+        'name',
+        'knid',
+        'knid-new',
+        'region',
+        'district',
+        'municipality',
+        'munid',
+        'address',
+        'year',
+        'author',
+        'description',
+        'image',
+        'wdid',
+        'wiki',
+        'commonscat',
+        'protection',
+        'link',
+        'document')
 
 
         sql=''
