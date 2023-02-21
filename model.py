@@ -289,6 +289,7 @@ and wkt_geom is Null;
         
     def wikivoyage2db_v2(self,wikivoyage_objects,pagename):
         for obj in wikivoyage_objects:
+            if 'complex' not in obj: obj['complex']=None
             sql='''INSERT INTO wikivoyagemonuments 
             (
 type,
@@ -314,6 +315,7 @@ commonscat,
 protection,
 link,
 document,
+complex,
 page)
 values
 (:type,
@@ -339,6 +341,7 @@ values
 :protection,
 :link,
 :document,
+:complex,
 :page);
 '''
           
@@ -389,6 +392,7 @@ values
         assert len(wikivoyage_objects)>0
         
         layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
+        layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
 
         
         fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
@@ -404,7 +408,9 @@ values
         fld.SetWidth(1)
         layer.CreateField(fld)
         
+        cnt = 0
         for fieldname in wikivoyage_objects[0].keys():
+            
             if fieldname in fields_blacklist: continue
             fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
             fld.SetWidth(9999)
@@ -412,6 +418,7 @@ values
 
 
         for row in wikivoyage_objects:
+            cnt = cnt+1
             feature = ogr.Feature(layer.GetLayerDefn())
             for fieldname in wikivoyage_objects[0].keys():
                 feature.SetField(fieldname.replace('-','_'),row.get(fieldname))
@@ -421,6 +428,7 @@ values
             feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
             if 'Q' in row['wdid']: feature.SetField('link_wikidata','https://www.wikidata.org/wiki/'+row['wdid'])
             if row['long'] == '':  feature.SetField('no_geo',1)
+            feature.SetField('order',cnt)
             point = ogr.Geometry(ogr.wkbPoint)
             try:
                 point.AddPoint(float(row['long']), float(row['lat']))
@@ -486,38 +494,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         self.cur.executescript(sql)
 
 
-    def delme_wikivoyage_push_wikidata_batch(self,dbid_list):
-        #check if this list of integers
-        assert len(dbid_list) > 0
-        assert all(isinstance(item, int) for item in dbid_list)
-        
-        #diry generate list of db eitities
-        monuments_list = list()
-        for dbid in dbid_list:
-            sql = '''SELECT page, knid, dbid FROM wikivoyagemonuments WHERE dbid=?'''
-            self.cur.execute(sql,(dbid,))
-            monument = self.cur.fetchone()
-            check, reason = self.is_wikivoyage_allow_add_wikidata(monument['page'],wikivoyageid=monument['knid'])
-            if not check:
-                print(reason)
-                return
-            monuments_list.append(monument)
-        
-        pagename = monument['page']
-        page_content = self.wikipedia_get_page_content(pagename)
-        with open('wikivoyage_page_code.txt', 'w') as file:
-            file.write(page_content)
-        
-        for monument in monuments_list:
-            #print(monument)
-            print('--- push to wikidata '+str(monument['dbid']))
-            new_wikidata_id = self.wikivoyage_push_wikidata_internal(monument['dbid'])
-            self.add_wikidata_id_to_wikivoyage(
-                monument['page'],
-                wikivoyageid=monument['knid'],
-                wikidataid=new_wikidata_id, 
-                filename='wikivoyage_page_code.txt',
-                )
+
             
     def wikivoyage_push_wikidata_geo(self):
         
@@ -604,7 +581,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         
         return changeset
     
-    def wikivoyage_push_wikidata(self):
+    def wikivoyage_push_wikidata(self,dry):
     
         #diry generate list of db eitities
         monuments_list = list()
@@ -635,7 +612,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         for monument in monuments_list:
             #print(monument)
             print('--- push to wikidata '+str(monument['dbid']))
-            new_wikidata_id = self.wikivoyage_push_wikidata_internal(monument['dbid'])
+            new_wikidata_id = self.wikivoyage_push_wikidata_internal(monuments_list,monument['dbid'],dry)
             names4editnote.append(monument['name4wikidata'][:30]+' '+' '.join(monument['name'].split()[:8]))
             
             self.add_wikidata_id_to_wikivoyage(
@@ -672,20 +649,10 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         self.add_wikidata_id_to_wikivoyage(monument['page'],wikivoyageid=monument['knid'],wikidataid=new_wikidata_id)
         
     
-    def wikivoyage_push_wikidata_internal(self,dbid):
+    def wikivoyage_push_wikidata_internal(self,monuments_list,dbid,dry=False):
         #validate is db record ok for create
         assert dbid >0
-        '''
-        UPDATE wikivoyagemonuments SET address='Москва, ' || address;
-UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Москве, памятник архитектуры' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Москве. Памятник архитектуры.' WHERE name like '%града%';
 
-UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Moscow' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Moscow.' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-        '''
         sql = '''UPDATE wikivoyagemonuments SET alias_ru = '' WHERE alias_ru is Null '''
         self.cur.execute(sql)
         self.con.commit()
@@ -701,9 +668,14 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
         
         assert monuments['cnt']==1
         
+
+        
+        
         create_result=False
         loop_counter = 0
+        
         while (not create_result):
+            part_of = None
             loop_counter = loop_counter + 1
             sql = '''
             select 
@@ -722,6 +694,7 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
     commonscat,
     dbid,
     page,
+    complex,
     instance_of2,
     name AS name_wikivoyage,
     knid
@@ -730,6 +703,16 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
                 '''
             self.cur.execute(sql,(dbid,))
             monument = self.cur.fetchone()
+            
+            # if field "complex" is set: search for record knid wdid=complex, take it wdid
+            if monument['complex'] is not None:
+                complex_id = monument['complex'].strip()
+                if len(str(complex_id)) > 5 and str(complex_id) != str(monument['knid']):
+                    sql = '''select * from wikivoyagemonuments where knid=? '''
+                    self.logger.debug(complex_id)
+                    self.cur.execute(sql,(complex_id,))
+                    complex_main_object = self.cur.fetchone()
+                    part_of = complex_main_object['wdid'].strip()
             
             wikidata_template = '''
     {
@@ -787,6 +770,10 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
                 }
             
             wd_object['claims']['P131']=monument['munid'] #city
+            
+            if part_of is not None and part_of.startswith('Q'):  #part of
+                wd_object['claims']['P361']=part_of
+            
             if monument['address'] is not None and len(monument['address'])>4:  #address
                 wd_object['claims']['P6375']={'value':{'language':'ru','text':monument['address']}} 
                 if monument['address_source'] is not None and 'Q' in monument['address_source']:
@@ -805,7 +792,9 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%сам
                 json.dump(wd_object, outfile)
                 
             self.pp.pprint(wd_object)
-            print(' wb create-entity ./temp_json_data.json')
+            if dry:
+                quit('dry run')
+
             time.sleep(5)
             
             cmd = ['wb', 'create-entity', './temp_json_data.json']

@@ -20,6 +20,7 @@ def argparser_prepare(pagename):
             formatter_class=PrettyFormatter)  
     
     parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo'])    
+    parser.add_argument('-dry', action='store_const', default=False, const=True)    
   
     return parser
     
@@ -39,7 +40,7 @@ if args.mode == 'clone-all':
     model.wikivoyage_bulk_import_heritage()
 
 if args.mode == 'push':
-    model.wikivoyage_push_wikidata()
+    model.wikivoyage_push_wikidata(args.dry)
 if args.mode == 'push-geo':
     model.wikivoyage_push_wikidata_geo()
 
