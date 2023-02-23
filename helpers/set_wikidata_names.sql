@@ -43,3 +43,6 @@ UPDATE wikivoyagemonuments SET instance_of2 ='Q4989906' WHERE name like '%амя
 UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE (name like '%парк%'  or name like '%Парк%') and name not like '%парке%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%орота%' and name not like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q39015397' WHERE name like '%удка центрального управления стрелками%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q1339195' WHERE name like '%Пассажирское здание%';
+

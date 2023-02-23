@@ -515,6 +515,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         
         objects = self.wikivoyagelist2python(page_content,pagename)
         names4editnote = list()
+        names4editnote_short = list()
         
         for obj in changeset:
             page_content = self.change_value_wiki(
@@ -540,6 +541,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             for obj_full in objects:
                 if obj_full['knid']==obj['knid']:
                     names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
+                    names4editnote_short.append(obj_full['address'][:30])
             
 
             
@@ -609,11 +611,13 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             file.write(page_content)
         
         names4editnote = list()
+        names4editnote_short = list()
         for monument in monuments_list:
             #print(monument)
             print('--- push to wikidata '+str(monument['dbid']))
             new_wikidata_id = self.wikivoyage_push_wikidata_internal(monuments_list,monument['dbid'],dry)
             names4editnote.append(monument['name4wikidata'][:30]+' '+' '.join(monument['name'].split()[:8]))
+            names4editnote_short.append(monument['name4wikidata'][:30])
             
             self.add_wikidata_id_to_wikivoyage(
                 monument['page'],
@@ -621,7 +625,10 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 wikidataid=new_wikidata_id, 
                 filename='wikivoyage_page_code.txt',
                 )
-        wiki_edit_message = 'копирование в wikidata: '+', '.join(names4editnote)
+        if len(names4editnote) <8:
+            wiki_edit_message = 'копирование в wikidata: '+', '.join(names4editnote)
+        else:
+            wiki_edit_message = 'копирование в wikidata: '+', '.join(names4editnote_short)
         print(wiki_edit_message)
         print('change wikivoyage page')
         site = pywikibot.Site('ru', 'wikivoyage')
@@ -712,7 +719,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                     self.logger.debug(complex_id)
                     self.cur.execute(sql,(complex_id,))
                     complex_main_object = self.cur.fetchone()
-                    part_of = complex_main_object['wdid'].strip()
+                    if complex_main_object is not None: part_of = complex_main_object['wdid'].strip()
             
             wikidata_template = '''
     {
@@ -784,7 +791,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             wd_object['claims']['P625']['longitude']=float(monument['long']) #coords
 
            
-            if len(monument['commonscat'])>4:
+            if monument['commonscat'] is not None and len(monument['commonscat'])>4:
                 wd_object['sitelinks']={"commonswiki":"Category:"+monument['commonscat']} #commonscat
                 wd_object['claims']['P373']=monument['commonscat'] #commonscat
                 
