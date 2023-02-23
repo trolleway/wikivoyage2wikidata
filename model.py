@@ -316,6 +316,7 @@ protection,
 link,
 document,
 complex,
+validation_message,
 page)
 values
 (:type,
@@ -342,6 +343,7 @@ values
 :link,
 :document,
 :complex,
+:validation_message,
 :page);
 '''
           
@@ -534,7 +536,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             page_content,
             knid = obj['knid'],
             fieldname = 'precise',
-            value = 'yes'
+            value = 'yes'+"\n"
             )
             
             #changeset message
@@ -829,7 +831,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 wdid = response['entity']['id']
         
                 try:
-                    print("now add manually to \n https://ru.wikivoyage.org/wiki/"+monument['page']+'#'+monument['knid']+' '+monument['EGROKN']+ ' wdid='+wdid)
+                    print("now add to \n https://ru.wikivoyage.org/wiki/"+monument['page']+'#'+monument['knid']+' '+monument['EGROKN']+ ' wdid='+wdid)
                 except:
                     print('object added')
                 return wdid
@@ -1002,6 +1004,31 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             for field in fields:
                 wikivoyage_objects[idx][field.strip().replace('-','_')]=wikivoyage_objects[idx].get(field)  
                 if '-' in field: wikivoyage_objects[idx].pop(field, None)
+                
+        # validate
+        
+        # complex object
+        # check if main object already in wikidata
+        
+        for obj in wikivoyage_objects:
+            obj['validation_message'] = ''    
+            
+        for obj in wikivoyage_objects:         
+            if 'Q' in obj.get('wdid'): continue
+            if obj.get('complex')=='': continue
+            if obj.get('complex')==obj['knid'] and 'Q' not in obj['wdid']: obj['validation_message']='upload frist, this is main object of complex'
+        # check if this part of complex and main object not in wikidata
+
+        for obj in wikivoyage_objects:
+            if 'Q' in obj.get('wdid'): continue
+            if obj.get('complex')=='': continue       
+            if obj.get('complex')!=obj['knid']:
+                for obj_parent in wikivoyage_objects:
+                    if obj_parent.get('knid') == obj.get('complex'):
+                        if 'Q' in obj_parent.get('wdid',''):     obj['validation_message']='complex object ready for upload'
+                        if 'Q' not in obj_parent.get('wdid',''): 
+                            obj['validation_message']='main object of complex not in wikidata'
+            
         
         return wikivoyage_objects
      

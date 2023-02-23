@@ -23,7 +23,8 @@ dbid,
 page,
 instance_of2
 FROM wikivoyagemonuments
-            where wdid = '' 
+            where 1=1 
+            --AND wdid = '' 
             AND type not in ('archeology','monument')
             AND lat is not Null
             AND precise='yes'
