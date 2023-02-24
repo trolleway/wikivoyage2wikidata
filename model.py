@@ -30,11 +30,7 @@ class Model():
         self.con = sqlite3.connect(dbpath)
         self.con.row_factory = sqlite3.Row
         self.cur = self.con.cursor()
-        #for row in cur.execute('SELECT * FROM photos ORDER BY photoid'):
-        #    print(dict(row))
-        self.cur.execute("SELECT * FROM buildings ORDER BY buildingid")
-        results = self.cur.fetchall()
-        assert len(results) > 0
+
         
         
 
