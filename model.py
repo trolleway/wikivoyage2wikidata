@@ -313,6 +313,7 @@ link,
 document,
 complex,
 validation_message,
+ready_to_push,
 page)
 values
 (:type,
@@ -340,6 +341,8 @@ values
 :document,
 :complex,
 :validation_message,
+:ready_to_push,
+
 :page);
 '''
           
@@ -371,50 +374,65 @@ values
         
         self.wikivoyage_prepare_batch()
     
-    def wikivoyage2gdal(self,wikivoyage_objects,pagename,filename):
+    def wikivoyage2gdal(self,wikivoyage_objects,pagename,filename, append_mode=False):
         #create vector layer for edit in QGIS
+        
+        #Этот почему-то не добавляет фичи при 2 и последующем проходах. Это наблюдается при всех драйверах
+        if not len(wikivoyage_objects)>0: return False
         
         fields_blacklist=('lat','long')
         
         gdal.UseExceptions()
 
         driver = ogr.GetDriverByName('GPKG')
-        if os.path.exists(filename):
-             driver.DeleteDataSource(filename)
-        print(filename)
-        ds = driver.CreateDataSource(filename)
+        #driver = ogr.GetDriverByName('ESRI Shapefile')
+        if not append_mode:
+            if os.path.exists(filename):
+                 driver.DeleteDataSource(filename)
+        
+        if os.path.exists(filename): 
+            ds = driver.Open(filename)
+        else:
+            ds = driver.CreateDataSource(filename)
+            
         assert ds is not None
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
-        layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
-        assert len(wikivoyage_objects)>0
         
-        layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
-        layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
+        if append_mode == False:
+            layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
+        
+            layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
+            layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
 
-        
-        fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
-        fld.SetWidth(9999)
-        layer.CreateField(fld)        
-        fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
-        fld.SetWidth(9999)
-        layer.CreateField(fld)        
-        fld = ogr.FieldDefn('link_snow',ogr.OFTString)
-        fld.SetWidth(9999)
-        layer.CreateField(fld)        
-        fld = ogr.FieldDefn('no_geo',ogr.OFTInteger)
-        fld.SetWidth(1)
-        layer.CreateField(fld)
-        
-        cnt = 0
-        for fieldname in wikivoyage_objects[0].keys():
             
-            if fieldname in fields_blacklist: continue
-            fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
+            fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
             fld.SetWidth(9999)
+            layer.CreateField(fld)        
+            fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
+            fld.SetWidth(9999)
+            layer.CreateField(fld)        
+            fld = ogr.FieldDefn('link_snow',ogr.OFTString)
+            fld.SetWidth(9999)
+            layer.CreateField(fld)        
+            fld = ogr.FieldDefn('no_geo',ogr.OFTInteger)
+            fld.SetWidth(1)
             layer.CreateField(fld)
+            
+            for fieldname in wikivoyage_objects[0].keys():
+                
+                if fieldname in fields_blacklist: continue
+                fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
+                fld.SetWidth(9999)
+                layer.CreateField(fld)
 
-
+        elif append_mode:
+            layer = ds.GetLayerByName('wikivoyage_heritage')
+        assert layer is not None
+        cnt = 0
+        feature_count_1 = layer.GetFeatureCount()
+        self.logger.debug('start append features to layer. Count='+str(layer.GetFeatureCount())+' append_mode='+str(append_mode) ) 
+        layer.StartTransaction()
         for row in wikivoyage_objects:
             cnt = cnt+1
             feature = ogr.Feature(layer.GetLayerDefn())
@@ -436,12 +454,21 @@ values
                 #empty geom
             layer.CreateFeature(feature)
             feature = None
+        
+        layer.CommitTransaction()
+        layer.SyncToDisk()
             
+        feature_count_2 = layer.GetFeatureCount()
+        self.logger.debug('end append features to layer. Count='+str(layer.GetFeatureCount()) + 
+        ' features readed: '+str(cnt) )
+        layer = None
         ds = None
+        
+        assert feature_count_1 + cnt == feature_count_2
         
 
         
-    def wikivoyage_bulk_import_heritage(self):
+    def wikivoyage_bulk_import_heritage(self,prefix='ru:Культурное наследие России/'):
         import pywikibot
         from pywikibot import pagegenerators
 
@@ -453,15 +480,27 @@ values
             print('you has records in database ready to push. Looks like command to import is mistake. For re-import: run manual command DELETE FROM wikivoyagemonuments')
             return     
             
+        geodata_filename = os.path.join('geodata','bulk.gpkg')
+        if os.path.isfile(geodata_filename):        os.remove(geodata_filename)
+        
         sql = 'DELETE FROM wikivoyagemonuments'
         self.cur.execute(sql)    
         site = pywikibot.Site('ru', 'wikivoyage')
-        pages = pagegenerators.PrefixingPageGenerator('ru:Культурное наследие России/')
+        if not prefix.endswith('/'): prefix=prefix.strip()+'/'
+        pages = pagegenerators.PrefixingPageGenerator(prefix)
+        pages_count = 0
         for page in pages:
+            pages_count = pages_count + 1
             print(page)
+            pagename=str(page).replace('ru:','')
             page_content = page.text
-            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename=str(page).replace('ru:',''))
-            self.wikivoyage2db_v2(wikivoyage_objects,pagename=str(page).replace('ru:',''))
+            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+            self.wikivoyage2db_v2(wikivoyage_objects,pagename)
+            if pages_count == 1:
+                if os.path.exists(geodata_filename): os.unlink(geodata_filename)
+                self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=False)
+            else:
+                self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=True)
             
         
 
@@ -581,7 +620,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         
         return changeset
     
-    def wikivoyage_push_wikidata(self,dry):
+    def wikivoyage_push_wikidata(self,dry, allow_same_words):
     
         #diry generate list of db eitities
         monuments_list = list()
@@ -598,8 +637,8 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             words_list = monument['entity_description'].split()
             for word in words_list:
                 if len(word) < 5: continue
-                if monument['entity_description'].count(word)>1:
-                    print('string contains two same words '+word+' : ' + "\n"+monument['entity_description'])
+                if monument['entity_description'].count(word)>1 and not allow_same_words:
+                    print('string contains two same words '+word+' : ' + "\n"+monument['entity_description'] + "\n Use --allow_same_words for skip this check" )
                     return
             monuments_list.append(monument)
 
@@ -962,7 +1001,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             obj=dict()
             for argument in parsed.templates[counter].arguments:
                 obj[argument.name]=str(argument.value).replace('\n','').strip()
-            #if obj.get('type','')=='archeology': continue
+            obj['ready_to_push']=None
             wikivoyage_objects.append(obj)
             
         # sanitize input for db
@@ -1010,7 +1049,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             obj['validation_message'] = ''    
             
         for obj in wikivoyage_objects:         
-            if 'Q' in obj.get('wdid'): continue
+            if 'Q' in obj.get('wdid',''): continue
             if obj.get('complex')=='': continue
             if obj.get('complex')==obj['knid'] and 'Q' not in obj['wdid']: obj['validation_message']='upload frist, this is main object of complex'
         # check if this part of complex and main object not in wikidata
@@ -1021,11 +1060,30 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             if obj.get('complex')!=obj['knid']:
                 for obj_parent in wikivoyage_objects:
                     if obj_parent.get('knid') == obj.get('complex'):
-                        if 'Q' in obj_parent.get('wdid',''):     obj['validation_message']='complex object ready for upload'
+                        if 'Q' in obj_parent.get('wdid',''):     obj['validation_message']='part complex object ready for upload'
                         if 'Q' not in obj_parent.get('wdid',''): 
                             obj['validation_message']='main object of complex not in wikidata'
+                            obj['ready_to_push']=0
             
+        # ---- dublicate coordinates
+        # ---- coordinates in features must be unique
         
+        wkts=list()
+        for obj in wikivoyage_objects:
+            obj['lat']=obj['lat'].replace(',','')
+            obj['long']=obj['long'].replace(',','')
+            wkt_geom = 'POINT ('+str(round(float(obj.get('lat') or 0),5)) + ' ' + str(round(float(obj.get('long') or 0),5)) + ')'
+            wkts.append(wkt_geom)
+        for obj in wikivoyage_objects:
+            wkt_geom = 'POINT ('+str(round(float(obj.get('lat') or 0),5)) + ' ' + str(round(float(obj.get('long') or 0),5)) + ')'
+            if wkt_geom == 'POINT (0.0 0.0)' : 
+                obj['validation_message']+='no coordinates'
+                obj['ready_to_push']=0
+            elif wkts.count(wkt_geom)>1:
+                obj['validation_message']+='non unique coordinates'
+                obj['ready_to_push']=0       
+        
+
         return wikivoyage_objects
      
      

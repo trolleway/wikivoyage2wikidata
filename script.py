@@ -21,6 +21,8 @@ def argparser_prepare(pagename):
     
     parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo'])    
     parser.add_argument('-dry', action='store_const', default=False, const=True)    
+    parser.add_argument('--allow_same_words', action='store_const', default=False, const=True)    
+    parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' )    
   
     return parser
     
@@ -28,7 +30,9 @@ def argparser_prepare(pagename):
 #pagename = 'Культурное_наследие_России/Москва/Центральный_округ/За_Садовым_кольцом_от_просп._Мира_до_Стар._Басманной_и_Спартаковской_ул.'
 #pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Тверской_до_Бол._Лубянки'
 #pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Бол._Полянки_до_Пятницкой'
-pagename = 'Культурное_наследие_России/Москва/Центральный_округ/Остров'
+#pagename = 'Культурное_наследие_России/Москва/Юго-восточный_округ'
+pagename = 'Культурное_наследие_России/Москва/Юго-западный_округ'
+#pagename = 'Культурное_наследие_России/Оренбургская_область/Оренбург_(часть_2)'
 #pagename = 'Культурное_наследие_России/Ивановская_область/Южский_район'
 
 parser = argparser_prepare(pagename)
@@ -38,10 +42,15 @@ if args.mode == 'clone':
     model.wikivoyage_page_import_heritage(pagename)
     
 if args.mode == 'clone-all':
-    model.wikivoyage_bulk_import_heritage()
+    prefix = args.bulk_clone_prefix
+    model.wikivoyage_bulk_import_heritage(prefix)
+    '''
+    
+    time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Москва/"
+    '''
 
 if args.mode == 'push':
-    model.wikivoyage_push_wikidata(args.dry)
+    model.wikivoyage_push_wikidata(args.dry, allow_same_words=args.allow_same_words)
 if args.mode == 'push-geo':
     model.wikivoyage_push_wikidata_geo()
 

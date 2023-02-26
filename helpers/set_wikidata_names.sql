@@ -18,6 +18,7 @@ UPDATE
   wikivoyagemonuments
 SET entity_description = name || CASE 
 	WHEN name like '%града%' THEN ' в Москве. Памятник архитектуры.' 
+	WHEN name like '%ограды%' THEN ' в Москве. Памятник архитектуры.' 
 	WHEN name like '%орота%' THEN ' в Москве. Памятник архитектуры.' 
 	WHEN name like '%садьба%' THEN ' в Москве. Памятник архитектуры.' 
     WHEN name like '%амятник%' THEN ' в Москве' 
@@ -28,6 +29,7 @@ UPDATE
   wikivoyagemonuments
 SET description4wikidata_en = CASE 
 	WHEN name like '%града%' THEN 'Fence of historical building in Moscow' 
+	WHEN name like '%ограды%' THEN 'Fence of historical building in Moscow'
 	WHEN name like '%орота%' THEN 'Gates in Moscow' 
 	WHEN name like '%амятник%' THEN 'Monument in Moscow' 
 	WHEN (name like '%Парк%' or name like '%парк%' or name like '%квер%') and name not like '%парке%'  THEN 'Park in Moscow.' 
@@ -35,14 +37,18 @@ SET description4wikidata_en = CASE
 
 
 UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%ограды%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%' and name not like '%олокольня%' ;
+UPDATE wikivoyagemonuments SET instance_of2 ='Q200334' WHERE name like '%олокольня%' and name not like '%ерковь%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
+UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%омплекс%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q4989906' WHERE name like '%амятник%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE (name like '%парк%'  or name like '%Парк%') and name not like '%парке%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%орота%' and name not like '%града%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q39015397' WHERE name like '%удка центрального управления стрелками%';
 UPDATE wikivoyagemonuments SET instance_of2 ='Q1339195' WHERE name like '%Пассажирское здание%';
+
 
