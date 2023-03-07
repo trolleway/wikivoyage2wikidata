@@ -1,0 +1,18 @@
+wb sparql ./helpers/list-wikidata-needed-10code.sparql --format csv > wd.csv
+
+sqlite3 buildings.sqlite ".mode csv" ".import wd.csv wd_broken" ".exit"
+
+time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Москва/"
+
+
+7733554000
+771921325340005
+
+SELECT ?lemma ?item WHERE {
+  VALUES ?lemma {
+    "Культурное наследие России/Москва/Центральный округ/От Бол. Полянки до Пятницкой"@ru
+  }
+  ?sitelink schema:about ?item;
+    schema:isPartOf <https://ru.wikivoyage.org/>;
+    schema:name ?lemma.
+}

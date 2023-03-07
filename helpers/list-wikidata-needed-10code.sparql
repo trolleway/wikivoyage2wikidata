@@ -1,0 +1,6 @@
+# ?item wdt:P31 wd:Q146 .
+SELECT ?item ?itemLabel ?code15 WHERE {
+  ?item wdt:P5381 ?code15.
+  FILTER(NOT EXISTS { ?item wdt:P1483 ?code10. })
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],ru,en". }
+}

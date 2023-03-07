@@ -12,6 +12,7 @@ import wikitextparser as wtp
 import urllib.request
 import time, datetime
 from osgeo import ogr, osr, gdal
+import tempfile
 
 import pywikibot
 
@@ -284,8 +285,13 @@ and wkt_geom is Null;
         return txt
         
     def wikivoyage2db_v2(self,wikivoyage_objects,pagename):
+        
+        page_wikidata_code = self.pagename2wikidata(pagename)
+        self.logger.info(page_wikidata_code)
+        quit()
         for obj in wikivoyage_objects:
             if 'complex' not in obj: obj['complex']=None
+            obj['page_wikidata_code']=page_wikidata_code
             sql='''INSERT INTO wikivoyagemonuments 
             (
 type,
@@ -314,6 +320,7 @@ document,
 complex,
 validation_message,
 ready_to_push,
+page_wikidata_code,
 page)
 values
 (:type,
@@ -342,6 +349,7 @@ values
 :complex,
 :validation_message,
 :ready_to_push,
+:page_wikidata_code,
 
 :page);
 '''
@@ -391,7 +399,7 @@ values
                  driver.DeleteDataSource(filename)
         
         if os.path.exists(filename): 
-            ds = driver.Open(filename)
+            ds = driver.Open(filename,gdal.GA_Update)
         else:
             ds = driver.CreateDataSource(filename)
             
@@ -985,7 +993,48 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
  
         
         return True, 'wikidata page valid for add wikidata id'
+    
+    def pagename2wikidata(self,pagename)->str:
+        pagename = pagename.replace('[[','')
+        pagename = pagename.replace(']]','')
+        pagename = pagename.replace('_',' ')
+        
+        sparql = '''
+        SELECT ?lemma ?item WHERE {
+  VALUES ?lemma {
+    "$PAGENAME"@ru
+  }
+  ?sitelink schema:about ?item;
+    schema:isPartOf <https://ru.wikivoyage.org/>;
+    schema:name ?lemma.
+}
+    '''
+        sparql = sparql.replace('$PAGENAME',pagename)
+        tempfile_sparql = tempfile.NamedTemporaryFile()
 
+        # Open the file for writing.
+        with open(tempfile_sparql.name, 'w') as f:
+        #with open('temp.rq', 'w') as f:
+            f.write(sparql) # where `stuff` is, y'know... stuff to write (a string)
+        
+
+        cmd = ['wb', 'sparql', tempfile_sparql.name, '--format', 'json']
+        
+        response = subprocess.run(cmd, capture_output=True)
+
+        dict_wd = json.loads(response.stdout.decode())
+        self.pp.pprint(dict_wd)
+        try:
+            wikidata_id = dict_wd[0]['item']
+            return wikidata_id
+        except:
+            return None
+        
+        
+        return ''
+        
+            
+        
     def wikivoyagelist2python(self, page_content, pagename)-> dict: 
         #print(page_content)
 
@@ -1049,6 +1098,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             obj['validation_message'] = ''    
             
         for obj in wikivoyage_objects:         
+            if obj['wdid'] is None: obj['wdid'] = ''
             if 'Q' in obj.get('wdid',''): continue
             if obj.get('complex')=='': continue
             if obj.get('complex')==obj['knid'] and 'Q' not in obj['wdid']: obj['validation_message']='upload frist, this is main object of complex'
@@ -1070,8 +1120,10 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         
         wkts=list()
         for obj in wikivoyage_objects:
-            obj['lat']=obj['lat'].replace(',','')
-            obj['long']=obj['long'].replace(',','')
+            if obj['lat'] is None: obj['lat'] = ''
+            if obj['long'] is None: obj['long'] = ''
+            obj['lat']=obj.get('lat','').replace(',','')
+            obj['long']=obj.get('long','').replace(',','')
             wkt_geom = 'POINT ('+str(round(float(obj.get('lat') or 0),5)) + ' ' + str(round(float(obj.get('long') or 0),5)) + ')'
             wkts.append(wkt_geom)
         for obj in wikivoyage_objects:
@@ -1086,7 +1138,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
 
         return wikivoyage_objects
      
-     
+
     
 if __name__ == "__main__":
     '''
