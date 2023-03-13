@@ -3,10 +3,15 @@ wb sparql ./helpers/list-wikidata-needed-10code.sparql --format csv > wd.csv
 sqlite3 buildings.sqlite ".mode csv" ".import wd.csv wd_broken" ".exit"
 
 time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Москва/"
+time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Нижегородская область/"
 
 
-7733554000
-771921325340005
+SELECT wikivoyagemonuments.address, wd_broken.itemLabel 
+FROM wikivoyagemonuments JOIN wd_broken ON wikivoyagemonuments.knid_new=wd_broken.code15
+
+'https://ru-monuments.toolforge.org/snow/index.php?id='||knid AS 'SNOW',
+
+
 
 SELECT ?lemma ?item WHERE {
   VALUES ?lemma {
@@ -16,3 +21,18 @@ SELECT ?lemma ?item WHERE {
     schema:isPartOf <https://ru.wikivoyage.org/>;
     schema:name ?lemma.
 }
+
+
+
+
+SELECT address || ' ' || name as name, wdid,wd_claims.obj ,  wd_claims.value,
+knid as set_10code, page_wikidata_code as set_10code_p248 , 'RU-'||knid as set_wlmcode, 'https://ru-monuments.toolforge.org/wikivoyage.php?id='||knid AS set_wlmcode_p584
+FROM wikivoyagemonuments LEFT JOIN wd_claims ON 
+	wikivoyagemonuments.wdid='Q'||wd_claims.obj 
+	and wd_claims.prop=1483
+	and wikivoyagemonuments.knid=wd_claims.value
+WHERE wdid <> ''
+and wd_claims.value is null
+ORDER BY CAST(replace(wdid,'Q','') as int);
+
+

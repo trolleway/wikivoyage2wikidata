@@ -19,7 +19,7 @@ def argparser_prepare(pagename):
             epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n page set to"+pagename,
             formatter_class=PrettyFormatter)  
     
-    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo'])    
+    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo','wdr','wdu'])    
     parser.add_argument('-dry', action='store_const', default=False, const=True)    
     parser.add_argument('--allow_same_words', action='store_const', default=False, const=True)    
     parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' )    
@@ -54,6 +54,11 @@ if args.mode == 'push':
     model.wikivoyage_push_wikidata(args.dry, allow_same_words=args.allow_same_words)
 if args.mode == 'push-geo':
     model.wikivoyage_push_wikidata_geo()
+if args.mode == 'wdr':
+    model.read_wd()
+
+if args.mode == 'wdu':
+    model.wikivoyage_update_wikidata()
 
 
 #model.sync_pull_one()

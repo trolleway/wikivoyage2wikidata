@@ -288,7 +288,6 @@ and wkt_geom is Null;
         
         page_wikidata_code = self.pagename2wikidata(pagename)
         self.logger.info(page_wikidata_code)
-        quit()
         for obj in wikivoyage_objects:
             if 'complex' not in obj: obj['complex']=None
             obj['page_wikidata_code']=page_wikidata_code
@@ -475,6 +474,65 @@ values
         assert feature_count_1 + cnt == feature_count_2
         
 
+    def read_wd(self):
+        def list_by_chunks(lst, n):
+            # looping till length l
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
+                
+        sql = "select group_concat(wdid, ' ') as wdids from wikivoyagemonuments;"
+        self.cur.execute(sql)
+        wdids_db = self.cur.fetchone()
+        wdids_str = wdids_db['wdids']
+        
+        wdids_list = wdids_str.split(' ')
+        wdids_str = ' '.join(wdids_list) #[0:10]
+        json_tempfile = tempfile.NamedTemporaryFile()
+        json_filename = json_tempfile.name
+        with open('list.txt', "w") as text_file:
+            text_file.write(wdids_str)
+        
+        cmd='cat list.txt | wd data --props labels.ru,claims.P5381,claims.P1483,claims.P2186 --simplify > {json_filename}'
+        cmd = cmd.format(json_filename=json_filename)
+        os.system(cmd)
+        assert os.path.isfile(json_filename)
+        
+        wd_objs = list()
+        with open(json_filename, "r") as json_file:
+            count = 0
+            while True:
+                count += 1
+              
+                # Get next line from file
+                line = json_file.readline()
+              
+                # if line is empty
+                # end of file is reached
+                if not line:
+                    break
+                
+    
+                wd_obj = json.loads(line.strip())
+                #self.pp.pprint(wd_obj)
+                wd_objs.append(wd_obj)
+        
+        self.cur.execute('DELETE FROM wd_claims')
+        chunks = list(list_by_chunks(wd_objs, 80))
+        for chunk in chunks:
+            #print('b')
+            #self.cur.execute('BEGIN TRANSACTION')
+            for wd_obj in chunk:
+                for prop in wd_obj['claims'].keys():
+                    objid=int(str(wd_obj['id']).replace('Q',''))
+                    propid=int(str(prop).replace('P',''))
+                    v=wd_obj['claims'].get(prop)
+                    if len(wd_obj['claims'].get(prop))<1: continue
+                    v=v[0]
+                    print(objid, propid, v )
+                    self.cur.execute('INSERT OR IGNORE INTO wd_claims (obj, prop, value) VALUES (?,?,?)', (objid, propid, v ))
+            #self.cur.execute('END TRANSACTION')
+            self.cur.execute('COMMIT')
+
         
     def wikivoyage_bulk_import_heritage(self,prefix='ru:Культурное наследие России/'):
         import pywikibot
@@ -499,7 +557,6 @@ values
         pages_count = 0
         for page in pages:
             pages_count = pages_count + 1
-            print(page)
             pagename=str(page).replace('ru:','')
             page_content = page.text
             wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
@@ -627,7 +684,56 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         ds = None
         
         return changeset
-    
+    def wikivoyage_update_wikidata(self):
+        sql = '''
+        
+SELECT address || ' ' || name as name, wdid, 'https://www.wikidata.org/wiki/'||wdid as wikidata_url, wd_claims.obj ,  wd_claims.value,
+knid as set_10code, page_wikidata_code as set_10code_p248 , 'RU-'||knid as set_wlmcode, 
+'https://ru-monuments.toolforge.org/wikivoyage.php?id='||knid AS set_wlmcode_p854
+FROM wikivoyagemonuments LEFT JOIN wd_claims ON 
+	wikivoyagemonuments.wdid='Q'||wd_claims.obj 
+	and wd_claims.prop=1483
+	and wikivoyagemonuments.knid=wd_claims.value
+WHERE wdid <> ''
+and wd_claims.value is null
+ORDER BY CAST(replace(wdid,'Q','') as int);
+        '''
+        self.cur.execute(sql)
+        objects = self.cur.fetchall()
+
+        for obj in objects[0:1]:
+            
+            cmd = ['wb', 'generate-template', '--json', obj['wdid']]
+            response = subprocess.run(cmd, capture_output=True)
+
+            dict_wd = json.loads(response.stdout.decode())
+            dict_wd['claims']['P1483']={}
+            dict_wd['claims']['P1483']['value'] = obj['set_10code']
+            dict_wd['claims']['P1483']['references']=({'P248':obj['set_10code_p248']})
+            if 'P2186' not in dict_wd['claims']:
+                dict_wd['claims']['P2186']={}
+                dict_wd['claims']['P2186']['value'] = obj['set_wlmcode']
+                dict_wd['claims']['P2186']['references']=({'P854':obj['set_wlmcode_p854']})
+            with open('temp_json_data.json', 'w') as outfile:
+                json.dump(dict_wd, outfile)
+            cmd = ['wb', 'edit-entity', './temp_json_data.json']
+            skip_create=False
+            if not skip_create: response = subprocess.run(cmd, capture_output=True)  
+            if '"success":1' not in response.stdout.decode() and not skip_create:
+                print('update error')
+                print(response.stdout.decode())
+                print(response.stderr.decode())
+                quit()
+            else:
+                objid=int(obj['wdid'].replace('Q',''))
+                propid=1483
+                v=obj['set_10code']
+                self.cur.execute('INSERT  INTO wd_claims (obj, prop, value) VALUES (?,?,?)', (objid, propid, v ))
+                self.cur.execute('COMMIT')
+                
+            self.logger.info('procesed: https://www.wikidata.org/wiki/'+obj['wdid'])
+            
+            
     def wikivoyage_push_wikidata(self,dry, allow_same_words):
     
         #diry generate list of db eitities
