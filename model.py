@@ -558,6 +558,9 @@ values
         for page in pages:
             pages_count = pages_count + 1
             pagename=str(page).replace('ru:','')
+            pagename = pagename.replace('[[','')
+            pagename = pagename.replace(']]','')
+
             page_content = page.text
             wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
             self.wikivoyage2db_v2(wikivoyage_objects,pagename)
@@ -598,7 +601,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
 
 
             
-    def wikivoyage_push_wikidata_geo(self):
+    def wikivoyage_edit_geodata(self):
         
         changeset = self.gpkg2changeset()
         assert changeset is not None
@@ -687,7 +690,9 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
     def wikivoyage_update_wikidata(self):
         sql = '''
         
-SELECT address || ' ' || name as name, wdid, 'https://www.wikidata.org/wiki/'||wdid as wikidata_url, wd_claims.obj ,  wd_claims.value,
+SELECT address || ' ' || name as name, wdid, 
+'https://ru-monuments.toolforge.org/snow/index.php?id='||knid AS 'SNOW',
+'https://www.wikidata.org/wiki/'||wdid as wikidata_url, wd_claims.obj ,  wd_claims.value,
 knid as set_10code, page_wikidata_code as set_10code_p248 , 'RU-'||knid as set_wlmcode, 
 'https://ru-monuments.toolforge.org/wikivoyage.php?id='||knid AS set_wlmcode_p854
 FROM wikivoyagemonuments LEFT JOIN wd_claims ON 
@@ -701,7 +706,10 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         self.cur.execute(sql)
         objects = self.cur.fetchall()
 
-        for obj in objects[0:1]:
+        max_count=10
+        cnt=-1
+        for obj in objects[0:max_count]:
+            cnt = cnt+1
             
             cmd = ['wb', 'generate-template', '--json', obj['wdid']]
             response = subprocess.run(cmd, capture_output=True)
@@ -731,7 +739,8 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 self.cur.execute('INSERT  INTO wd_claims (obj, prop, value) VALUES (?,?,?)', (objid, propid, v ))
                 self.cur.execute('COMMIT')
                 
-            self.logger.info('procesed: https://www.wikidata.org/wiki/'+obj['wdid'])
+            self.logger.info('procesed: https://ru-monuments.toolforge.org/snow/index.php?id='+str(obj['set_10code'])+' > https://www.wikidata.org/wiki/'+obj['wdid'])
+            if cnt != max_count-1: time.sleep(10)
             
             
     def wikivoyage_push_wikidata(self,dry, allow_same_words):
