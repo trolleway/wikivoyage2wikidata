@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-import os, subprocess, logging, argparse
+import os, subprocess, logging, argparse, sys
 
 from model import Model
 
@@ -22,7 +22,10 @@ def argparser_prepare(pagename):
     parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo','wdr','wdu'])    
     parser.add_argument('-dry', action='store_const', default=False, const=True)    
     parser.add_argument('--allow_same_words', action='store_const', default=False, const=True)    
-    parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' )    
+    parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' ) 
+    parser.add_argument('--subpages',default=False, action='store_true',   help='Display list of subpages in clone mode' )
+    parser.add_argument('--subpage_number',default=False, type=int,  help='clone mode: clone subpage by number' )
+
   
     return parser
     
@@ -34,13 +37,13 @@ def argparser_prepare(pagename):
 #pagename = 'Культурное_наследие_России/Москва/Юго-западный_округ'
 #pagename = 'Культурное_наследие_России/Оренбургская_область/Оренбург_(часть_2)'
 #pagename = 'Культурное_наследие_России/Ивановская_область/Южский_район'
-pagename = 'Культурное_наследие_России/Нижегородская_область/Шатковский_район'
+pagename = 'Культурное_наследие_России/Нижегородская_область'
 
 parser = argparser_prepare(pagename)
 args = parser.parse_args()
 
 if args.mode == 'clone':
-    model.wikivoyage_page_import_heritage(pagename)
+    model.wikivoyage_page_import_interface(pagename,subpages=args.subpages,subpage_number=args.subpage_number)
     
 if args.mode == 'clone-all':
     prefix = args.bulk_clone_prefix

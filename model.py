@@ -15,11 +15,12 @@ from osgeo import ogr, osr, gdal
 import tempfile
 
 import pywikibot
+from pywikibot import pagegenerators
 
 class Model():
 
 
-    logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)-8s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)-8s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(__name__)
     wiki_pages_cache=''
     def __init__(self):
@@ -216,7 +217,6 @@ and wkt_geom is Null;
         cmd = ['wd', 'generate-template', '--json' , building['wikidata']]
         response = subprocess.run(cmd, capture_output=True)
         dict_wd = json.loads(response.stdout.decode())
-        #self.pp.pprint(dict_wd)
         
 
         print('https://www.wikidata.org/wiki/'+building['wikidata'])
@@ -287,7 +287,6 @@ and wkt_geom is Null;
     def wikivoyage2db_v2(self,wikivoyage_objects,pagename):
         
         page_wikidata_code = self.pagename2wikidata(pagename)
-        self.logger.info(page_wikidata_code)
         for obj in wikivoyage_objects:
             if 'complex' not in obj: obj['complex']=None
             obj['page_wikidata_code']=page_wikidata_code
@@ -355,8 +354,46 @@ values
           
             self.cur.execute(sql,obj)
             self.con.commit()
-            
+
+    def wikivoyage_page_import_interface(self,pagename,subpages=False,subpage_number=None):
+        if subpages:
+            site = pywikibot.Site('ru', 'wikivoyage')
+            prefix=pagename
+            if not prefix.endswith('/'): prefix=prefix.strip()+'/'
+            pages = pagegenerators.PrefixingPageGenerator(prefix)
+            pages_count = 0
+            for page in pages:
+                pages_count = pages_count + 1
+                pagename=str(page).replace('ru:','')
+                pagename = pagename.replace('[[','')
+                pagename = pagename.replace(']]','')
+                print(str(pages_count).rjust(6) +' '+pagename )
+            return
+        
+        if subpage_number:
+            assert isinstance(subpage_number,int)
+
+            site = pywikibot.Site('ru', 'wikivoyage')
+            prefix=pagename
+            if not prefix.endswith('/'): prefix=prefix.strip()+'/'
+            pages = pagegenerators.PrefixingPageGenerator(prefix)
+            pages_count = 0
+            for page in pages:
+                pages_count = pages_count + 1
+                pagename=str(page).replace('ru:','')
+                pagename = pagename.replace('[[','')
+                pagename = pagename.replace(']]','')
+                
+                if pages_count == subpage_number:
+                    #use this subpage name for import
+                    break
+
+
+        self.wikivoyage_page_import_heritage(pagename)
+
     def wikivoyage_page_import_heritage(self,pagename):
+
+
         sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
         self.cur.execute(sql)
         monuments = self.cur.fetchone()
@@ -513,7 +550,6 @@ values
                 
     
                 wd_obj = json.loads(line.strip())
-                #self.pp.pprint(wd_obj)
                 wd_objs.append(wd_obj)
         
         self.cur.execute('DELETE FROM wd_claims')
@@ -535,8 +571,7 @@ values
 
         
     def wikivoyage_bulk_import_heritage(self,prefix='ru:Культурное наследие России/'):
-        import pywikibot
-        from pywikibot import pagegenerators
+
 
         sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
         self.cur.execute(sql)
@@ -928,7 +963,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 wd_object['claims']['P5381']=monument['EGROKN'] #link to EGROKN number
             else: #refrenced in closed website kulturnoe-nasledie.ru
                 # не пойму когда оно есть, когда нет, перемудрили wd_object['claims']['P1435']['references']=({'P248':'Q50339681'})
-                # 	kulturnoe-nasledie.ru ID
+                # 	russian wikivoyage ID
                 wd_object['claims']['P1483']=monument['knid'] #link to knid
             #WLM code
             wd_object['claims']['P2186']={'value':'RU-'+monument['knid'],
@@ -958,7 +993,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             with open('temp_json_data.json', 'w') as outfile:
                 json.dump(wd_object, outfile)
                 
-            self.pp.pprint(wd_object)
+
             if dry:
                 quit('dry run')
 
@@ -1138,7 +1173,6 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         response = subprocess.run(cmd, capture_output=True)
 
         dict_wd = json.loads(response.stdout.decode())
-        self.pp.pprint(dict_wd)
         try:
             wikidata_id = dict_wd[0]['item']
             return wikidata_id
