@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-import os, subprocess, logging, sqlite3, pprint, json
+import os, subprocess, logging, sqlite3, pprint, json, tempfile
 
 
 from shapely import wkt
@@ -12,7 +12,7 @@ import wikitextparser as wtp
 import urllib.request
 import time, datetime
 from osgeo import ogr, osr, gdal
-import tempfile
+
 
 import pywikibot
 from pywikibot import pagegenerators
@@ -446,7 +446,6 @@ values
         if append_mode == False:
             layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
         
-            layer.CreateField(ogr.FieldDefn('commit',ogr.OFTInteger))
             layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
 
             
@@ -510,7 +509,6 @@ values
         
         assert feature_count_1 + cnt == feature_count_2
         
-
     def read_wd(self):
         def list_by_chunks(lst, n):
             # looping till length l
@@ -569,7 +567,6 @@ values
             #self.cur.execute('END TRANSACTION')
             self.cur.execute('COMMIT')
 
-        
     def wikivoyage_bulk_import_heritage(self,prefix='ru:Культурное наследие России/'):
 
 
@@ -605,13 +602,8 @@ values
             else:
                 self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=True)
             
-        
-
-    
     def wikivoyage2db(self,pagename):
         pass
-
-        
         
     def wikivoyage_prepare_batch(self):
         sql = '''
@@ -633,12 +625,96 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             
         self.cur.executescript(sql)
 
+    def get_attr_values_distinct(self,filename,fieldname)->list:
+        assert os.path.isfile(filename)
+        ds_local = gdal.OpenEx(filename,gdal.GA_ReadOnly)
+        if ds_local is None:
+            raise IOError(filename + 'prorably locked. Remove this layer from QGIS or close QGIS')
+        layer_local = ds_local.GetLayer()
+        values=list()
+        for feature in layer_local:
+            value = feature.GetField(fieldname)
+            if value not in values: values.append(value)
+        return values
 
 
-            
     def wikivoyage_edit_geodata(self):
+        #get pagenames from gpkg
+        local_objects_gpkg = os.path.join('geodata','points.gpkg')
+        pagenames=self.get_attr_values_distinct(local_objects_gpkg,'page')
+        assert len(pagenames)>0
+        assert None not in pagenames
+
+        for pagename in pagenames:
+            tmpdir = tempfile.mkdtemp()
+            external_objects_gpkg = os.path.join(tmpdir,'points.gpkg')
+
+            page_content = self.wikipedia_get_page_content(pagename)
+            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+            self.wikivoyage2gdal(wikivoyage_objects,pagename,filename = external_objects_gpkg)    
+            
+            changeset = self.gpkg2changeset(filename_local=os.path.join('geodata','points.gpkg'),filename_external=os.path.join(tmpdir,'points.gpkg'),pagename=pagename)
+            self.pp.pprint(changeset)
+            # дальше как в старой
+            
+
+            pagename = changeset[0]['page']
+            for obj in changeset:
+                if obj['page'] != pagename:
+                    raise ValueError('all records in GPKG must have same "page" value')
+                assert obj.get('lat') is not None
+                assert obj.get('long') is not None
+            
+            page_content = self.wikipedia_get_page_content(pagename)
+            
+            objects = self.wikivoyagelist2python(page_content,pagename)
+
+
+
+            names4editnote = list()
+            names4editnote_short = list()
+            
+            for obj in changeset:
+                page_content = self.change_value_wiki(
+                page_content,
+                knid = obj['knid'],
+                fieldname = 'lat',
+                value = obj['lat']
+                )
+                page_content = self.change_value_wiki(
+                page_content,
+                knid = obj['knid'],
+                fieldname = 'long',
+                value = obj['long']
+                )
+                page_content = self.change_value_wiki(
+                page_content,
+                knid = obj['knid'],
+                fieldname = 'precise',
+                value = 'yes'+"\n"
+                )
+                
+                #changeset message
+                for obj_full in objects:
+                    if obj_full['knid']==obj['knid']:
+                        names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
+                        names4editnote_short.append(obj_full['address'][:30])
+
+            with open('wikivoyage_page_code.txt', 'w') as file:
+                file.write(page_content)
+            # push to wikivoyage
+            site = pywikibot.Site('ru', 'wikivoyage')
+            page = pywikibot.Page(site, pagename)
+            
+            wiki_edit_message = 'Координаты '+', '.join(names4editnote)
+            page.text = page_content
+            page.save(wiki_edit_message, minor=False)
+            print('page updated')
+
+
+    def wikivoyage_edit_geodata0(self):
         
-        changeset = self.gpkg2changeset()
+        changeset = self.gpkg2changeset0(filename=os.path.join('geodata','points.gpkg'))
         assert changeset is not None
         assert len(changeset)>0
 
@@ -654,6 +730,9 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         page_content = self.wikipedia_get_page_content(pagename)
         
         objects = self.wikivoyagelist2python(page_content,pagename)
+
+
+
         names4editnote = list()
         names4editnote_short = list()
         
@@ -697,31 +776,73 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         page.save(wiki_edit_message, minor=False)
         print('page updated')
         
+    def gpkg2changeset(self, filename_local, filename_external, pagename) -> list :
         
-    def gpkg2changeset(self) -> list :
-        # read gpkg, get features with commit=1, return changeset list
-        filename = os.path.join('geodata','points.gpkg')
-        assert os.path.isfile(filename)
-        ds = gdal.OpenEx(filename,gdal.GA_ReadOnly)
-        if ds is None:
-            raise IOError(filename + 'prorably locked. Remove this layer from QGIS or close QGIS')
-        layer = ds.GetLayer()
-        layer.SetAttributeFilter(''' "commit"=1 ''')
-        if layer.GetFeatureCount() <1:
-            print('in '+filename+' not found features with commit=1 value')
+        # read two gpkg, get features with diferent geometry, return list
+        assert os.path.isfile(filename_local)
+        ds_local = gdal.OpenEx(filename_local,gdal.GA_ReadOnly)
+        if ds_local is None:
+            raise IOError(filename_local + 'prorably locked. Remove this layer from QGIS or close QGIS')
+        layer_local = ds_local.GetLayer()
+        flt=''' "page"='{pagename}' '''.format(pagename=pagename)
+        layer_local.SetAttributeFilter(flt)
+        if layer_local.GetFeatureCount() <1:
+            print('in '+filename_local+' filter '+ flt+ ' return <1')
+            return
+        
+        assert os.path.isfile(filename_external)
+        ds_external = gdal.OpenEx(filename_external,gdal.GA_ReadOnly)
+        if ds_external is None:
+            raise IOError(filename_external + 'prorably locked. Remove this layer from QGIS or close QGIS')
+        layer_external = ds_external.GetLayer()
+        flt=''' "page"='{pagename}' '''.format(pagename=pagename)
+        layer_external.SetAttributeFilter(flt)
+        if layer_external.GetFeatureCount() <1:
+            print('in '+filename_external+' filter '+ flt+ ' return <1')
             return
         changeset=list()
-        for feature in layer:
-            geom = feature.GetGeometryRef()
-            changeset.append({
-                'knid':feature.GetField('knid'),
-                'page':feature.GetField('page'),
-                'lat':round(geom.GetY(),5),
-                'long':round(geom.GetX(),5),
+        assert layer_local.GetFeatureCount() == layer_external.GetFeatureCount()
+        for feature_local in layer_local:
+            flt=''' "page"='{pagename}' and knid={knid}'''.format(
+                pagename=pagename,
+                knid=feature_local.GetField('knid'))
+            layer_external.SetAttributeFilter(flt)
+            assert layer_external.GetFeatureCount()==1, 'filter '+flt+' return '+str(layer_external.GetFeatureCount())
+            feature_external = layer_external.GetNextFeature()
+            if feature_local.GetGeometryRef() is None: continue
+            ok=False
+            object_changeset_msg = ''
+            # case: create coordinates for object
+            if (feature_external.GetGeometryRef() is None and feature_local.GetGeometryRef() is not None):
+                ok = True
+                object_changeset_msg = 'Задал координаты'
+            # case: change coordidates
+            elif feature_local.GetGeometryRef().Distance(feature_external.GetGeometryRef())>0.0001:
+                ok = True
+
+                #geod = Geodesic.WGS84
+                # parameters: lat1, lon1, lat2, lon2
+                #geod_result = geod.Inverse(feature_local.GetGeometryRef().GetY(), feature_local.GetGeometryRef().GetX(), feature_external.GetGeometryRef().GetY(), feature_external.GetGeometryRef().GetX(),geod.DISTANCE)
+                object_changeset_msg = 'Сдвиг'#+str(round(geod_result['a12'],10)) +' м.'
+            if ok:
+                changeset.append({
+                'knid':feature_local.GetField('knid'),
+                'page':feature_local.GetField('page'),
+                'lat':round(feature_local.GetGeometryRef().GetY(),5),
+                'long':round(feature_local.GetGeometryRef().GetX(),5),
+                'message':object_changeset_msg,
                 })
-        ds = None
-        
+            layer_external.ResetReading()
+
+
+
+
+        ds_local = None
+        ds_external = None
         return changeset
+        
+
+    
     def wikivoyage_update_wikidata(self):
         sql = '''
         
