@@ -38,6 +38,7 @@ def argparser_prepare(pagename):
 #pagename = 'Культурное_наследие_России/Оренбургская_область/Оренбург_(часть_2)'
 #pagename = 'Культурное_наследие_России/Ивановская_область/Южский_район'
 pagename = 'Культурное_наследие_России/Смоленская_область'
+#pagename = 'Культурное_наследие_России/Москва'
 
 parser = argparser_prepare(pagename)
 args = parser.parse_args()

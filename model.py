@@ -450,13 +450,19 @@ values
 
             
             fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
-            fld.SetWidth(9999)
+            fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
-            fld.SetWidth(9999)
+            fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('link_snow',ogr.OFTString)
-            fld.SetWidth(9999)
+            fld.SetWidth(300)
+            layer.CreateField(fld)        
+            fld = ogr.FieldDefn('link_josm',ogr.OFTString)
+            fld.SetWidth(300)
+            layer.CreateField(fld)              
+            fld = ogr.FieldDefn('link_geohack',ogr.OFTString)
+            fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('no_geo',ogr.OFTInteger)
             fld.SetWidth(1)
@@ -466,7 +472,7 @@ values
                 
                 if fieldname in fields_blacklist: continue
                 fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
-                fld.SetWidth(9999)
+                fld.SetWidth(1000)
                 layer.CreateField(fld)
 
         elif append_mode:
@@ -483,6 +489,17 @@ values
                 feature.SetField(fieldname.replace('-','_'),row.get(fieldname))
                 #feature.SetField(fieldname.replace('-','_'),'0')
             #print(float(row['lat']), float(row['long']))
+            if row['long'] != '':
+                s=0.002
+                left=round(float(row['long']),5)-s
+                right=round(float(row['long']),5)+s
+                bottom=round(float(row['lat']),5)-s
+                top=round(float(row['lat']),5)+s
+                link_josm = 'http://127.0.0.1:8111/load_and_zoom?left={left}&right={right}&top={top}&bottom={bottom}'.format(left=left,right=right,top=top,bottom=bottom)
+                feature.SetField('link_josm',link_josm)
+                link_geohack = 'https://geohack.toolforge.org/geohack.php?params={lat};{lon}'
+                link_geohack = link_geohack.format(lat=(row['lat']),lon=(row['long']))
+                feature.SetField('link_geohack',link_geohack)
             feature.SetField('link_wikivoyage','https://ru.wikivoyage.org/wiki/'+row['page']+'#'+row['knid'])
             feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
             if 'Q' in row['wdid']: feature.SetField('link_wikidata','https://www.wikidata.org/wiki/'+row['wdid'])
@@ -654,10 +671,11 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             self.wikivoyage2gdal(wikivoyage_objects,pagename,filename = external_objects_gpkg)    
             
             changeset = self.gpkg2changeset(filename_local=os.path.join('geodata','points.gpkg'),filename_external=os.path.join(tmpdir,'points.gpkg'),pagename=pagename)
-            self.pp.pprint(changeset)
             # дальше как в старой
             
-
+            if len(changeset) == 0:
+                print('no changes')
+                return
             pagename = changeset[0]['page']
             for obj in changeset:
                 if obj['page'] != pagename:
