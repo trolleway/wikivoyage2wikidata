@@ -1425,7 +1425,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         
 
         return wikivoyage_objects
-     
+
+    def import_wikivoyage_dump(self,filename):
+        pass 
 
     
 if __name__ == "__main__":
