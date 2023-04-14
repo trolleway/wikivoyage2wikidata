@@ -1,6 +1,7 @@
 temp*
 wikibase-cli/config.json
 webmap_update_password.py
+buildings.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
