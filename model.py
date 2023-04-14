@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-import os, subprocess, logging, sqlite3, pprint, json, tempfile
+import os, subprocess, logging, sqlite3, pprint, json, tempfile, re
 
 
 from shapely import wkt
@@ -355,10 +355,10 @@ values
             self.cur.execute(sql,obj)
             self.con.commit()
 
-    def wikivoyage_page_import_interface(self,pagename,subpages=False,subpage_number=None):
+    def wikivoyage_page_import_interface(self,pagename,subpages=False,subpage_number=None,region='Москва'):
         if subpages:
             site = pywikibot.Site('ru', 'wikivoyage')
-            prefix=pagename
+            prefix=pagename+'/'+region
             if not prefix.endswith('/'): prefix=prefix.strip()+'/'
             pages = pagegenerators.PrefixingPageGenerator(prefix)
             pages_count = 0
@@ -374,7 +374,7 @@ values
             assert isinstance(subpage_number,int)
 
             site = pywikibot.Site('ru', 'wikivoyage')
-            prefix=pagename
+            prefix=pagename+'/'+region
             if not prefix.endswith('/'): prefix=prefix.strip()+'/'
             pages = pagegenerators.PrefixingPageGenerator(prefix)
             pages_count = 0
@@ -422,14 +422,15 @@ values
         #create vector layer for edit in QGIS
         
         #Этот почему-то не добавляет фичи при 2 и последующем проходах. Это наблюдается при всех драйверах
-        if not len(wikivoyage_objects)>0: return False
+        self.logger.debug('append_mode = ',append_mode)
+        if not len(wikivoyage_objects)>0: return 0
         
         fields_blacklist=('lat','long')
         
         gdal.UseExceptions()
 
         driver = ogr.GetDriverByName('GPKG')
-        #driver = ogr.GetDriverByName('ESRI Shapefile')
+        #driver = ogr.GetDriverByName('Geojson')
         if not append_mode:
             if os.path.exists(filename):
                  driver.DeleteDataSource(filename)
@@ -448,31 +449,31 @@ values
         
             layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
 
-            
+            fld = ogr.FieldDefn('geocode_string',ogr.OFTString)
+            layer.CreateField(fld)             
             fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
-            fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
-            fld.SetWidth(300)
+            #fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('link_snow',ogr.OFTString)
-            fld.SetWidth(300)
+            #fld.SetWidth(300)
             layer.CreateField(fld)        
             fld = ogr.FieldDefn('link_josm',ogr.OFTString)
-            fld.SetWidth(300)
+            #fld.SetWidth(300)
             layer.CreateField(fld)              
             fld = ogr.FieldDefn('link_geohack',ogr.OFTString)
-            fld.SetWidth(300)
+            #fld.SetWidth(300)
             layer.CreateField(fld)        
-            fld = ogr.FieldDefn('no_geo',ogr.OFTInteger)
-            fld.SetWidth(1)
+            fld = ogr.FieldDefn('no_geo',ogr.OFTInteger) #i've tired use OFSTBoolean, but qgis show it as (1:1)
+            #fld.SetWidth(1)
             layer.CreateField(fld)
             
             for fieldname in wikivoyage_objects[0].keys():
                 
                 if fieldname in fields_blacklist: continue
                 fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
-                fld.SetWidth(1000)
+                #fld.SetWidth(1000)
                 layer.CreateField(fld)
 
         elif append_mode:
@@ -489,21 +490,28 @@ values
                 feature.SetField(fieldname.replace('-','_'),row.get(fieldname))
                 #feature.SetField(fieldname.replace('-','_'),'0')
             #print(float(row['lat']), float(row['long']))
-            if row['long'] != '':
+            if row['long'] != '' and row['lat'] != '':
                 s=0.002
-                left=round(float(row['long']),5)-s
-                right=round(float(row['long']),5)+s
-                bottom=round(float(row['lat']),5)-s
-                top=round(float(row['lat']),5)+s
-                link_josm = 'http://127.0.0.1:8111/load_and_zoom?left={left}&right={right}&top={top}&bottom={bottom}'.format(left=left,right=right,top=top,bottom=bottom)
-                feature.SetField('link_josm',link_josm)
+                try:
+                    left=round(self.float_force(row['long']),5)-s
+                    right=round(self.float_force(row['long']),5)+s
+                    bottom=round(self.float_force(row['lat']),5)-s
+                    top=round(self.float_force(row['lat']),5)+s
+                    link_josm = 'http://127.0.0.1:8111/load_and_zoom?left={left}&right={right}&top={top}&bottom={bottom}'.format(left=left,right=right,top=top,bottom=bottom)
+                    feature.SetField('link_josm',link_josm)
+                except:
+                    pass #create field only if coordinates valid
                 link_geohack = 'https://geohack.toolforge.org/geohack.php?params={lat};{lon}'
                 link_geohack = link_geohack.format(lat=(row['lat']),lon=(row['long']))
                 feature.SetField('link_geohack',link_geohack)
-            feature.SetField('link_wikivoyage','https://ru.wikivoyage.org/wiki/'+row['page']+'#'+row['knid'])
-            feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
+            if row['knid'] is not None: feature.SetField('link_wikivoyage','https://ru.wikivoyage.org/wiki/'+row['page']+'#'+row['knid'])
+            if row['knid'] is not None: feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
             if 'Q' in row['wdid']: feature.SetField('link_wikidata','https://www.wikidata.org/wiki/'+row['wdid'])
             if row['long'] == '':  feature.SetField('no_geo',1)
+            try:
+                feature.SetField('geocode_string',row.get('district','')+' '+row.get('municipality','')+' '+row.get('address','') ) 
+            except:
+                pass
             feature.SetField('order',cnt)
             point = ogr.Geometry(ogr.wkbPoint)
             try:
@@ -525,6 +533,8 @@ values
         ds = None
         
         assert feature_count_1 + cnt == feature_count_2
+        return cnt
+
         
     def read_wd(self):
         def list_by_chunks(lst, n):
@@ -584,22 +594,13 @@ values
             #self.cur.execute('END TRANSACTION')
             self.cur.execute('COMMIT')
 
-    def wikivoyage_bulk_import_heritage(self,prefix='ru:Культурное наследие России/'):
+    def wikivoyage_bulk_import_heritage(self,prefix='Культурное наследие России/'):  
 
-
-        sql = 'SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1'
-        self.cur.execute(sql)
-        monuments = self.cur.fetchone()
-        
-        if monuments['cnt'] > 0:
-            print('you has records in database ready to push. Looks like command to import is mistake. For re-import: run manual command DELETE FROM wikivoyagemonuments')
-            return     
-            
         geodata_filename = os.path.join('geodata','bulk.gpkg')
         if os.path.isfile(geodata_filename):        os.remove(geodata_filename)
-        
         sql = 'DELETE FROM wikivoyagemonuments'
-        self.cur.execute(sql)    
+        self.cur.execute(sql) 
+ 
         site = pywikibot.Site('ru', 'wikivoyage')
         if not prefix.endswith('/'): prefix=prefix.strip()+'/'
         pages = pagegenerators.PrefixingPageGenerator(prefix)
@@ -618,7 +619,54 @@ values
                 self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=False)
             else:
                 self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=True)
-            
+    def float_force(self,value)->float:
+        #remove from value all non-gigits, dot, - and convert to float        
+        try:
+            return float(re.sub(r'[^-+\d.]', '', str(value)))
+        except:
+            return None
+    
+    def wikivoyage_bulk_import_heritage_dump(self,prefix='Культурное наследие России/',dump='dumps-ww/ruwikivoyage-latest-pages-articles.xml'):
+        prefix = prefix.replace('ru:','') #no such symbols in xml dump 
+        geodata_filename = os.path.join('geodata','bulk.gpkg')
+        if os.path.isfile(geodata_filename):        os.remove(geodata_filename)
+        sql = 'DELETE FROM wikivoyagemonuments'
+        self.cur.execute(sql) 
+        
+        import mwxml
+        dump = mwxml.Dump.from_file(open(dump))
+
+        pagenames=list()
+        gpkg_created = False
+        pages_count = 0
+        pages_filtered_count = 0
+
+        for page in dump:
+            pages_count = pages_count + 1
+            if str(page.title).startswith(prefix):
+                pages_filtered_count = pages_filtered_count + 1
+                pagename = page.title
+                
+                for revision in page: # page has one revision in dump
+                    page_content = revision.text
+                self.logger.info(str(pages_filtered_count).rjust(4)+ str(pages_count).rjust(8) +' '+ pagename)
+                wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+
+                self.wikivoyage2db_v2(wikivoyage_objects,pagename)
+
+                if gpkg_created == False:
+                    if os.path.exists(geodata_filename): os.unlink(geodata_filename)
+                    features_created = self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=False)
+                    self.logger.debug('features_created = ',features_created)
+                    if features_created == 0: 
+                        gpkg_created = False
+                    else:
+                        gpkg_created = True
+                else:
+                    self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=True)
+
+
+
     def wikivoyage2db(self,pagename):
         pass
         
@@ -715,9 +763,11 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 #changeset message
                 for obj_full in objects:
                     if obj_full['knid']==obj['knid']:
-                        names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
-                        names4editnote_short.append(obj_full['address'][:30])
-
+                        try:
+                            names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
+                            names4editnote_short.append(obj_full['address'][:30])
+                        except:
+                            pass
             with open('wikivoyage_page_code.txt', 'w') as file:
                 file.write(page_content)
             # push to wikivoyage
@@ -1324,9 +1374,12 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             
         
     def wikivoyagelist2python(self, page_content, pagename)-> dict: 
-        #print(page_content)
 
-        parsed = wtp.parse(page_content)
+        try: 
+            parsed = wtp.parse(page_content)
+        except: #empty page
+            wikivoyage_objects = list()
+            return wikivoyage_objects
         del page_content
         counter=-1
         wikivoyage_objects = list()
@@ -1412,10 +1465,13 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             if obj['long'] is None: obj['long'] = ''
             obj['lat']=obj.get('lat','').replace(',','')
             obj['long']=obj.get('long','').replace(',','')
-            wkt_geom = 'POINT ('+str(round(float(obj.get('lat') or 0),5)) + ' ' + str(round(float(obj.get('long') or 0),5)) + ')'
+            if obj['lat'].count('.')>1:obj['lat'] = ''
+            if obj['long'].count('.')>1:obj['long'] = ''
+
+            wkt_geom = 'POINT ('+str(round(self.float_force(obj.get('lat') or 0),5)) + ' ' + str(round(self.float_force(obj.get('long') or 0),5)) + ')'
             wkts.append(wkt_geom)
         for obj in wikivoyage_objects:
-            wkt_geom = 'POINT ('+str(round(float(obj.get('lat') or 0),5)) + ' ' + str(round(float(obj.get('long') or 0),5)) + ')'
+            wkt_geom = 'POINT ('+str(round(self.float_force(obj.get('lat') or 0),5)) + ' ' + str(round(self.float_force(obj.get('long') or 0),5)) + ')'
             if wkt_geom == 'POINT (0.0 0.0)' : 
                 obj['validation_message']+='no coordinates'
                 obj['ready_to_push']=0
@@ -1426,8 +1482,6 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
 
         return wikivoyage_objects
 
-    def import_wikivoyage_dump(self,filename):
-        pass 
 
     
 if __name__ == "__main__":

@@ -23,6 +23,8 @@ def argparser_prepare(pagename):
     parser.add_argument('-dry', action='store_const', default=False, const=True)    
     parser.add_argument('--allow_same_words', action='store_const', default=False, const=True)    
     parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' ) 
+    parser.add_argument('--region', type=str, required=False, default='Москва', help='use this region' ) 
+    
     parser.add_argument('--subpages',default=False, action='store_true',   help='Display list of subpages in clone mode' )
     parser.add_argument('--subpage_number',default=False, type=int,  help='clone mode: clone subpage by number' )
 
@@ -37,19 +39,21 @@ def argparser_prepare(pagename):
 #pagename = 'Культурное_наследие_России/Москва/Юго-западный_округ'
 #pagename = 'Культурное_наследие_России/Оренбургская_область/Оренбург_(часть_2)'
 #pagename = 'Культурное_наследие_России/Ивановская_область/Южский_район'
-pagename = 'Культурное_наследие_России/Смоленская_область'
-#pagename = 'Культурное_наследие_России/Псковская_область'
+#pagename = 'Культурное_наследие_России/Смоленская_область'
+pagename = 'Культурное_наследие_России/Псковская_область'
+pagename = 'Культурное_наследие_России'
 #pagename = 'Культурное_наследие_России/Москва'
 
 parser = argparser_prepare(pagename)
 args = parser.parse_args()
 
 if args.mode == 'clone':
-    model.wikivoyage_page_import_interface(pagename,subpages=args.subpages,subpage_number=args.subpage_number)
+    model.wikivoyage_page_import_interface(pagename,subpages=args.subpages,subpage_number=args.subpage_number, region=args.region)
     
 if args.mode == 'clone-all':
     prefix = args.bulk_clone_prefix
-    model.wikivoyage_bulk_import_heritage(prefix)
+    model.wikivoyage_bulk_import_heritage_dump(prefix,dump='dumps-ww/ruwikivoyage-latest-pages-articles.xml')
+    #model.wikivoyage_bulk_import_heritage(prefix)
     '''
     
     time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Москва/"

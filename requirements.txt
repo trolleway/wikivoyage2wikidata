@@ -1,3 +1,6 @@
 shapely
 wikitextparser
 pywikibot
+mwxml
+transliterate
+num2words
