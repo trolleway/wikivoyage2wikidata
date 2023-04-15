@@ -308,111 +308,23 @@ class CommonsOps():
 
 processor = CommonsOps()
 
-create_categories=list()
-create_categories.append('Q117151245')
-for wd in create_categories:
-    processor.create_commonscat(wd,dry_mode=False)
-quit()
+
+c = False
+if c:
+    create_categories=list()
+    create_categories.append('Q117151245')
+    for wd in create_categories:
+        processor.create_commonscat(wd,dry_mode=False)
+    quit()
 
 buildings = list()
 
 buildings.append({
-    'housenumber':'17Г С1А',
-    'street_wikidata':'Q4238771',
-    'latlonstr':'55.757491, 37.709398', 'coord_source':'yandex maps',
-    'levels':1, 'levels_source':'2gis',
-    #'year':1926, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282642799''',
-    })
-
-buildings.append({
-    'housenumber':'3 с1',
-    'street_wikidata':'Q4531938',
-    'latlonstr':'55.757333, 37.708230', 'coord_source':'yandex maps',
-    'levels':4, 'levels_source':'2gis',
-    #'year':1926, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282642799''',
-    })
-
-buildings.append({
-    'housenumber':'3/5 к9',
-    'street_wikidata':'Q4349713',
-    'latlonstr':'55.763949, 37.697648', 'coord_source':'yandex maps',
-    'levels':3, 'levels_source':'2gis',
-    'year':1933, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282589974''',
-    })
-
-buildings.append({
-    'housenumber':'3/5 к10',
-    'street_wikidata':'Q4349713',
-    'latlonstr':'55.763488, 37.697478', 'coord_source':'yandex maps',
-    'levels':3, 'levels_source':'2gis',
-    'year':1933, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282589978''',
-    })
-
-buildings.append({
-    'housenumber':'3/5 к15',
-    'street_wikidata':'Q4349713',
-    'latlonstr':'55.763675, 37.696903', 'coord_source':'yandex maps',
-    'levels':6, 'levels_source':'2gis',
-    'year':1963, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282589976''',
-    })
-
-buildings.append({
-    'housenumber':'3/5 к5',
-    'street_wikidata':'Q4349713',
-    'latlonstr':'55.765205, 37.696229', 'coord_source':'yandex maps',
-    'levels':2, 'levels_source':'2gis',
-    'year':1903, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282589990''',
-    })
-
-buildings.append({
-    'housenumber':'3/5 c13',
-    'street_wikidata':'Q4349713',
-    'latlonstr':'55.765503, 37.695142', 'coord_source':'yandex maps',
-    'levels':1, 'levels_source':'2gis',
-    #'year':1903, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282589990''',
-    })
-
-
-
-buildings.append({
-    'housenumber':'2/18',
-    'street_wikidata':'Q4399196',
-    'latlonstr':'55.771596, 37.692222', 'coord_source':'yandex maps',
-    'levels':11, 'levels_source':'2gis',
-    'year':2004, # 'year_source':'wikimapia','year_url':'''https://2gis.ru/moscow/geo/4504235282589990''',
-    })
-
-buildings.append({
-    'housenumber':'8',
-    'street_wikidata':'Q4146384',
-    'latlonstr':'55.770259, 37.689168', 'coord_source':'yandex maps',
-    'levels':12, 'levels_source':'2gis',
-    'year':1968, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282646258''',
-    })
-
-
-buildings.append({
-    'housenumber':'4-6',
-    'street_wikidata':'Q4146384',
-    'latlonstr':'55.770466, 37.687785', 'coord_source':'yandex maps',
-    #'levels':12, 'levels_source':'2gis',
-    #'year':1968, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282646258''',
-    })
-
-buildings.append({
-    'housenumber':'4А с3',
-    'street_wikidata':'Q4146384',
-    'latlonstr':'55.769383, 37.687407', 'coord_source':'yandex maps',
-    'levels':6, 'levels_source':'2gis',
-    'year':1965, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282646233''',
-    })
-
-buildings.append({
-    'housenumber':'1 к1',
-    'street_wikidata':'Q4127795',
-    'latlonstr':'55.768891, 37.687030', 'coord_source':'yandex maps',
-    'levels':5, 'levels_source':'2gis',
-    'year':1930, 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282646025''',
+    'housenumber':'37',
+    'street_wikidata':'Q4091689',
+    'latlonstr':'55.776777, 37.646866', 'coord_source':'yandex maps',
+    'levels':3,# 'levels_source':'2gis',
+    'year':1902, # 'year_source':'2gis','year_url':'''https://2gis.ru/moscow/geo/4504235282642799''',
     })
 
 
