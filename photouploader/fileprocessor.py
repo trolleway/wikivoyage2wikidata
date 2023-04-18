@@ -124,7 +124,23 @@ class Fileprocessor:
 
         return building_record
 
-    def make_image_texts(self, filename, wikidata, place_en, place_ru) -> str:
+    def get_object_wikidata(self, wikidata) -> dict:
+        # get all claims of this wikidata objects
+        cmd = ["wb", "gt", "--json", "--no-minimize", wikidata]
+        response = subprocess.run(cmd, capture_output=True)
+        object_wd = json.loads(response.stdout.decode())
+
+        object_record = {
+            "name_en": object_wd["labels"]["en"],
+            "name_ru": object_wd["labels"]["ru"],
+            "commons": object_wd["claims"]["P373"][0]["value"],
+        }
+
+        return object_record
+
+    def make_image_texts(
+        self, filename, wikidata, place_en, place_ru, no_building=False
+    ) -> str:
         # return file description text
 
         assert os.path.isfile(filename)
@@ -134,33 +150,47 @@ class Fileprocessor:
         geo_dict = self.image2coords(filename)
         image_exif = self.image2camera_params(filename)
 
-        building_record = self.get_building_record_wikidata(wikidata)
-        # there is no excact 'city' in wikidata, use manual input cityname
-        building_record["addr:place:en"] = place_en
-        building_record["addr:place:ru"] = place_ru
+        if no_building:
+            wd_record = self.get_object_wikidata(wikidata)
+        else:
+            wd_record = self.get_building_record_wikidata(wikidata)
 
-        if building_record["addr:place:en"] == "Moscow":
+        # there is no excact 'city' in wikidata, use manual input cityname
+        wd_record["addr:place:en"] = place_en
+        wd_record["addr:place:ru"] = place_ru
+
+        if wd_record["addr:place:en"] == "Moscow":
             taken_on_location = "Moscow"
         else:
             taken_on_location = "Russia"
 
         text = ""
-
+        if no_building:
+            objectname_en = wd_record["name_en"]
+            objectname_ru = wd_record["name_ru"]
+        else:
+            objectname_en = (
+                wd_record["addr:place:en"]
+                + " "
+                + wd_record["addr:street:en"]
+                + " "
+                + wd_record["addr:housenumber:en"]
+            )
+            objectname_ru = (
+                wd_record["addr:place:ru"]
+                + " "
+                + wd_record["addr:street:ru"]
+                + " "
+                + wd_record["addr:housenumber:local"]
+            )
         filename_base = os.path.splitext(os.path.basename(filename))[0]
         filename_extension = os.path.splitext(os.path.basename(filename))[1]
         commons_filename = (
-            building_record["addr:place:en"]
-            + " "
-            + building_record["addr:street:en"]
-            + " "
-            + building_record["addr:housenumber:en"]
-            + " "
-            + dt_obj.strftime("%Y-%m %s")
-            + filename_extension
+            objectname_en + " " + dt_obj.strftime("%Y-%m %s") + filename_extension
         )
         commons_filename = commons_filename.replace("/", " drob ")
 
-        st = """== {{int:filedesc}} ==
+        prototype = """== {{int:filedesc}} ==
 {{Information
 |description={{en|1=2nd Baumanskaya Street 1 k1}}{{ru|1=Вторая Бауманская улица дом 1 К1}} {{ on Wikidata|Q86663303}}  {{Building address|Country=RU|Street name=2-я Бауманская улица|House number=1 К1}}  
 |source={{own}}
@@ -181,24 +211,8 @@ class Fileprocessor:
         st = """== {{int:filedesc}} ==
 {{Information
 |description="""
-        st += (
-            "{{en|1="
-            + building_record["addr:place:en"]
-            + " "
-            + building_record["addr:street:en"]
-            + " "
-            + building_record["addr:housenumber:en"]
-            + "}}"
-        )
-        st += (
-            "{{ru|1="
-            + building_record["addr:place:ru"]
-            + " "
-            + building_record["addr:street:ru"]
-            + " "
-            + building_record["addr:housenumber:local"]
-            + "}}"
-        )
+        st += "{{en|1=" + objectname_en + "}}"
+        st += "{{ru|1=" + objectname_ru + "}}"
         heritage_id = None
         heritage_id = self.get_heritage_id(wikidata)
         if heritage_id is not None:
@@ -266,7 +280,7 @@ class Fileprocessor:
 """
         )
 
-        text = text + "[[Category:" + building_record["commons"] + "]]" + "\n"
+        text = text + "[[Category:" + wd_record["commons"] + "]]" + "\n"
         text = text + "[[Category:Photographs by Artem Svetlov/Moscow]]" + "\n"
 
         return {"name": commons_filename, "text": text}

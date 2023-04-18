@@ -98,12 +98,12 @@ class CommonsOps:
 
         if "year" in data:
             wd_object["claims"]["P1619"] = {"value": {"time": str(data["year"])}}
-            if "year_source" in data:
+            if "year_source" or "year_url" in data:
                 wd_object["claims"]["P1619"]["references"] = list()
                 wd_object["claims"]["P1619"]["references"].append(dict())
-                if data["year_source"] == "2gis":
+                if data.get("year_source") == "2gis":
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q112119515"
-                if data["year_source"] == "wikimapia":
+                if data.get("year_source") == "wikimapia":
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q187491"
                 if "year_url" in data:
                     wd_object["claims"]["P1619"]["references"][0]["P854"] = data[
@@ -114,16 +114,16 @@ class CommonsOps:
             wd_object["claims"]["P1101"] = {
                 "value": {"amount": int(data["levels"]), "unit": "1"}
             }
-            if "levels_source" in data:
+            if "levels_source" or "levels_url" in data:
                 wd_object["claims"]["P1101"]["references"] = list()
                 wd_object["claims"]["P1101"]["references"].append(dict())
-                if data["levels_source"] == "2gis":
+                if data.get("levels_source") == "2gis":
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q112119515"
-                if data["levels_source"] == "wikimapia":
+                if data.get("levels_source") == "wikimapia":
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q187491"
 
             if "levels_url" in data:
-                wd_object["claims"]["P1101"]["references"][0]["P854"] = data["year_url"]
+                wd_object["claims"]["P1101"]["references"][0]["P854"] = data["levels_url"]
 
         with open("temp_json_data.json", "w") as outfile:
             json.dump(wd_object, outfile)
@@ -383,18 +383,23 @@ buildings = list()
 
 buildings.append(
     {
-        "housenumber": "18/1",
-        "street_wikidata": "Q4333885",
-        "latlonstr": "55.78516|37.62409",
+        "housenumber": "28",
+        "street_wikidata": "Q4457426",
+        "latlonstr": "55.81987|37.56205",
         "coord_source": "osm",
-        "levels": 13,
+        "levels": 2,
         #"levels_source": "2gis",
-        "year": 1991,
+        "levels_url":'https://flatinfo.ru/h_info1.asp?hid=51187',
+        "year": 1926,
         #"year_source": "2gis",
-        # year_url": """https://wikimapia.org/#lang=ru&lat=55.780917&lon=37.646070&z=17&m=w&show=/25149248/ru/%D0%9A%D0%B0%D0%BB%D0%B0%D0%BD%D1%87%D1%91%D0%B2%D1%81%D0%BA%D0%B0%D1%8F-%D1%83%D0%BB-32-58""",
+         "year_url": """https://flatinfo.ru/h_info1.asp?hid=51187""",
     }
 )
 
+'''
+
+
+'''
 
 validation_pass = True
 for data in buildings:

@@ -19,6 +19,14 @@ parser.add_argument(
 parser.add_argument(
     "-verify", action="store_const", required=False, default=False, const=True
 )
+parser.add_argument(
+    "--no-building",
+    action="store_const",
+    required=False,
+    default=False,
+    const=True,
+    help="Upload files for any Wikidata object witch has name en, name ru and commons category",
+)
 args = parser.parse_args()
 
 if os.path.isfile(args.filepath):
@@ -34,7 +42,11 @@ files = [os.path.join(args.filepath, x) for x in files]
 
 for filename in files:
     texts = fileprocessor.make_image_texts(
-        filename=filename, wikidata=args.wikidata, place_en="Moscow", place_ru="Москва"
+        filename=filename,
+        wikidata=args.wikidata,
+        place_en="Moscow",
+        place_ru="Москва",
+        no_building=args.no_building,
     )
 
     if args.dry_run:
