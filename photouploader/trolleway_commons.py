@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import logging
@@ -16,7 +16,7 @@ class CommonsOps:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger = logging.getLogger(__name__)
-    pp = pprint.PrettyPrinter(indent=4)
+    pp = pprint.PrettyPrinter(indent=1)
 
     commonscat_instanceof_types = ("building", "street")
 
@@ -362,7 +362,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--building",
-    required=False,
+    required=False, help='create commons object for this exist wikidata id'
 )
 
 args = parser.parse_args()
@@ -383,16 +383,16 @@ buildings = list()
 
 buildings.append(
     {
-        "housenumber": "28",
-        "street_wikidata": "Q4457426",
-        "latlonstr": "55.81987|37.56205",
+        "housenumber": "32",
+        "street_wikidata": "Q2545285",
+        "latlonstr": "55.75301|37.58035",
         "coord_source": "osm",
-        "levels": 2,
+        "levels": 18,
         #"levels_source": "2gis",
-        "levels_url":'https://flatinfo.ru/h_info1.asp?hid=51187',
-        "year": 1926,
+        "levels_url":'https://flatinfo.ru/h_info1.asp?hid=211292',
+        "year": 2013,
         #"year_source": "2gis",
-         "year_url": """https://flatinfo.ru/h_info1.asp?hid=51187""",
+         "year_url": 'https://flatinfo.ru/h_info1.asp?hid=211292',
     }
 )
 

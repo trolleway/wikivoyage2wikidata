@@ -138,17 +138,208 @@ class Fileprocessor:
 
         return object_record
 
+    def is_wikidata_id(self,text)->bool:
+        # check if string is valid wikidata id
+        if text.startswith('Q'):
+            return True
+        else:
+            return False
+            
+    def search_wikidata_by_string(self,text,stop_on_error = True)->str:
+        cmd = ['wb','search','--json',text]
+        
+        response = subprocess.run(cmd, capture_output=True)
+        object_wd = json.loads(response.stdout.decode())
+        if stop_on_error:
+            if not len(object_wd)>0:
+                raise ValueError('not found in wikidata: '+text)
+        self.logger.debug('found: '+text+' '+object_wd[0]['concepturi'])
+        return object_wd[0]['id']
+                
+        
+    def get_wikidata_labels(self,wikidata)->dict:
+        cmd = ['wb', 'gt', '--props', 'labels', '--json', wikidata]
+        response = subprocess.run(cmd, capture_output=True)
+        object_wd = json.loads(response.stdout.decode())
+        return object_wd['labels']      
+        
+    def get_wikidata(self,wikidata)->dict:
+        cmd = ['wb', 'gt', '--json', '--no-minimize',wikidata]
+        response = subprocess.run(cmd, capture_output=True)
+        object_wd = json.loads(response.stdout.decode())
+        return object_wd
+    
+    def get_territorial_entity(self,wd_record)->dict:
+        cmd = ['wb', 'gt', '--json', '--no-minimize',wd_record['claims']['P131'][0]['value'] ]
+        response = subprocess.run(cmd, capture_output=True)
+        object_wd = json.loads(response.stdout.decode())
+        return object_wd
+        
+    def make_image_texts_vehicle(self, filename, vehicle, system, model, street, number, route=None) -> dict:
+        assert os.path.isfile(filename)
+        assert vehicle in ['tram','trolleybus','bus', 'train']
+        vehicle_ru_dict={'tram':'трамвай','trolleybus':'троллейбус','bus':'автобус', 'train':'поезд'}
+        taken_on_location = "Russia"
+        wikidata_4_structured_data=list()
+        
+
+        if self.is_wikidata_id(system):
+            system_wdid = system
+        else:
+            system_wdid = self.search_wikidata_by_string(system,stop_on_error=True)        
+        system_wd = self.get_wikidata(system_wdid)
+        system_names = system_wd["labels"]
+        wikidata_4_structured_data.append(system_wd['id'])
+        city_name_en = self.get_territorial_entity(system_wd)['labels']['en']
+        city_name_ru = self.get_territorial_entity(system_wd)['labels']['ru']
+        
+        if self.is_wikidata_id(model):
+            model_wdid = model
+        else:
+            model_wdid = self.search_wikidata_by_string(model,stop_on_error=True)
+        model_wd = self.get_wikidata(model_wdid)
+        model_names = model_wd["labels"]
+        wikidata_4_structured_data.append(model_wd['id'])
+
+        if self.is_wikidata_id(street):
+            street_wdid = street
+        else:
+            street_wdid = self.search_wikidata_by_string(street,stop_on_error=True)
+        street_wd = self.get_wikidata(street_wdid)
+        street_names = street_wd["labels"]
+        wikidata_4_structured_data.append(street_wd['id'])
+        
+        '''
+        prototype
+        https://commons.wikimedia.org/wiki/File:Moscow_tram_LM-99AE_3032_-_panoramio_(1).jpg
+        
+        Moscow tram LM-99 3021 2017-05 1495993574.jpg
+        
+         
+        
+        
+        
+        '''
+        
+        
+        objectname_en = '{city} {transport} {model} {number}'.format(
+        transport = vehicle,
+        city = city_name_en,
+        model = model_names['en'],
+        number = number
+        )         
+        objectname_ru = '{city}, {transport} {model} {number}'.format(
+        city = city_name_ru,
+        transport = vehicle_ru_dict[vehicle],
+        model = model_names['ru'],
+        number = number
+        )
+        
+        # obtain exif
+        dt_obj = self.image2datetime(filename)
+        geo_dict = self.image2coords(filename)
+        
+        filename_base = os.path.splitext(os.path.basename(filename))[0]
+        filename_extension = os.path.splitext(os.path.basename(filename))[1]
+        commons_filename = (
+            objectname_en + " " + dt_obj.strftime("%Y-%m %s") + filename_extension
+        )
+        
+        text = ''
+        
+        st = """== {{int:filedesc}} ==
+{{Information
+|description="""
+        st += "{{en|1=" + objectname_en +' on ' + street_names['en'] 
+        if route is not None: st += ' Line '+route
+        st += "}}"
+        st += "{{ru|1=" + objectname_ru + ' на '+ street_names['ru'].replace('Улица','улица').replace('Проспект','проспект') 
+        if route is not None: st += ' Маршрут '+route
+        
+        st += "}}"
+        
+
+        st += "\n"
+        st += (
+            """|source={{own}}
+|author={{Creator:Artem Svetlov}}
+|date="""
+            + "{{Taken on|"
+            + dt_obj.isoformat()
+            + "|location="
+            + taken_on_location
+            + "}}"
+            + "\n"
+        )
+        st += "}}\n"
+
+        text += st
+
+        if geo_dict is not None:
+            st = (
+                "{{Location dec|"
+                + str(geo_dict.get("lat"))
+                + "|"
+                + str(geo_dict.get("lon"))
+            )
+            if "direction" in geo_dict:
+                st += "|heading:" + str(geo_dict.get("direction"))
+            st += "}}\n"
+            text += st
+
+            if "dest_lat" in geo_dict:
+                st = (
+                    "{{object location|"
+                    + str(geo_dict.get("dest_lat"))
+                    + "|"
+                    + str(geo_dict.get("dest_lon"))
+                    + "}}"
+                    + "\n"
+                )
+                text += st
+        text += self.get_camera_text(filename)
+        """
+        make
+        model
+        f_number
+        lens_model
+
+        """
+
+        text = (
+            text
+            + """== {{int:license-header}} ==
+{{self|cc-by-sa-4.0|author=Artem Svetlov}}
+"""
+        )
+
+        transports = {'tram':'Trams','trolleybus':'Trolleybuses','bus':'Buses'}
+        if route is not None:
+            text = text + "[[Category:{transports} on route {route} in {city}]]".format(
+            transports=transports[vehicle],
+            route=route,
+            city=city_name_en) + "\n"
+        text = text + "[[Category:" + system_wd["claims"]["P373"][0]["value"] + "]]" + "\n"
+        text = text + "[[Category:" + model_wd["claims"]["P373"][0]["value"] + "]]" + "\n"
+        text = text + "[[Category:" + street_wd["claims"]["P373"][0]["value"] + "]]" + "\n"
+        text = text + "[[Category:Photographs by Artem Svetlov/Moscow]]" + "\n"
+
+
+        
+        return {"name": commons_filename, "text": text, "structured_data_on_commons": wikidata_4_structured_data}
+        
+        
     def make_image_texts(
         self, filename, wikidata, place_en, place_ru, no_building=False
-    ) -> str:
-        # return file description text
+    ) -> dict:
+        # return file description texts
 
         assert os.path.isfile(filename)
 
         # obtain exif
         dt_obj = self.image2datetime(filename)
         geo_dict = self.image2coords(filename)
-        image_exif = self.image2camera_params(filename)
+        
 
         if no_building:
             wd_record = self.get_object_wikidata(wikidata)
@@ -256,15 +447,7 @@ class Fileprocessor:
                     + "\n"
                 )
                 text += st
-
-        if image_exif.get("make") is not None and image_exif.get("model") is not None:
-            if image_exif.get("make") != "" and image_exif.get("model") != "":
-                make = image_exif.get("make").strip()
-                model = image_exif.get("model").strip()
-                if "OLYMPUS" in make:
-                    make = "Olympus"
-                st = "{{Taken with|" + make + " " + model + "|sf=1|own=1}}" + "\n"
-                text += st
+        text += self.get_camera_text(filename)
         """
         make
         model
@@ -285,6 +468,19 @@ class Fileprocessor:
 
         return {"name": commons_filename, "text": text}
 
+    
+    def get_camera_text(self,filename)->str:
+        st = ''
+        image_exif = self.image2camera_params(filename)
+        if image_exif.get("make") is not None and image_exif.get("model") is not None:
+            if image_exif.get("make") != "" and image_exif.get("model") != "":
+                make = image_exif.get("make").strip()
+                model = image_exif.get("model").strip()
+                if "OLYMPUS" in make:
+                    make = "Olympus"
+                st = "{{Taken with|" + make + " " + model + "|sf=1|own=1}}" + "\n"
+                return st
+                
     def image2camera_params(self, path):
         with open(path, "rb") as image_file:
             image_exif = Image(image_file)
