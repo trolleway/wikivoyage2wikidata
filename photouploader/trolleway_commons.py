@@ -105,6 +105,9 @@ class CommonsOps:
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q112119515"
                 if data.get("year_source") == "wikimapia":
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q187491"
+                if 'https://2gis.ru' in data.get('year_url',''):
+                    wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q112119515"
+                    
                 if "year_url" in data:
                     wd_object["claims"]["P1619"]["references"][0]["P854"] = data[
                         "year_url"
@@ -121,6 +124,8 @@ class CommonsOps:
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q112119515"
                 if data.get("levels_source") == "wikimapia":
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q187491"
+                if 'https://2gis.ru' in data.get('levels_url',''):
+                    wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q112119515"
 
             if "levels_url" in data:
                 wd_object["claims"]["P1101"]["references"][0]["P854"] = data["levels_url"]
@@ -350,67 +355,67 @@ class CommonsOps:
         return result
 
 
-# ----------
+if __name__ == "__main__":
 
-parser = argparse.ArgumentParser(
-    description="Create wikidata and commons object for building"
-)
-
-parser.add_argument(
-    "-dry", "--dry-run", action="store_const", required=False, default=False, const=True
-)
-
-parser.add_argument(
-    "--building",
-    required=False, help='create commons object for this exist wikidata id'
-)
-
-args = parser.parse_args()
-processor = CommonsOps()
-
-if args.building:
-    create_categories = list()
-    create_categories.append(args.building)
-    for wd in create_categories:
-        processor.create_commonscat(wd, dry_mode=args.dry_run)
-    quit()
-
-buildings = list()
-
-# https://wikivoyage.toolforge.org/w/geomap.php?lang=ru
-# dates https://flatinfo.ru/h_info1.asp?hid=189602
-# https://wikishootme.toolforge.org/#lat=55.7701578333463&lng=37.67211914062501&zoom=18
-
-buildings.append(
-    {
-        "housenumber": "32",
-        "street_wikidata": "Q2545285",
-        "latlonstr": "55.75301|37.58035",
-        "coord_source": "osm",
-        "levels": 18,
-        #"levels_source": "2gis",
-        "levels_url":'https://flatinfo.ru/h_info1.asp?hid=211292',
-        "year": 2013,
-        #"year_source": "2gis",
-         "year_url": 'https://flatinfo.ru/h_info1.asp?hid=211292',
-    }
-)
-
-'''
-
-
-'''
-
-validation_pass = True
-for data in buildings:
-    if processor.validate_street(data) == False:
-        validation_pass = False
-
-if not validation_pass:
-    print("street wikidata objects non valid")
-    quit()
-for data in buildings:
-    building_wikidata = processor.create_wikidata_building(data, dry_mode=args.dry_run)
-    category_name = processor.create_commonscat(
-        building_wikidata, dry_mode=args.dry_run
+    parser = argparse.ArgumentParser(
+        description="Create wikidata and commons object for building"
     )
+
+    parser.add_argument(
+        "-dry", "--dry-run", action="store_const", required=False, default=False, const=True
+    )
+
+    parser.add_argument(
+        "--building",
+        required=False, help='create commons object for this exist wikidata id'
+    )
+
+    args = parser.parse_args()
+    processor = CommonsOps()
+
+    if args.building:
+        create_categories = list()
+        create_categories.append(args.building)
+        for wd in create_categories:
+            processor.create_commonscat(wd, dry_mode=args.dry_run)
+        quit()
+
+    buildings = list()
+
+    # https://wikivoyage.toolforge.org/w/geomap.php?lang=ru
+    # dates https://flatinfo.ru/h_info1.asp?hid=189602
+    # https://wikishootme.toolforge.org/#lat=55.7701578333463&lng=37.67211914062501&zoom=18
+
+    buildings.append(
+        {
+            "housenumber": "32",
+            "street_wikidata": "Q2545285",
+            "latlonstr": "55.75301|37.58035",
+            "coord_source": "osm",
+            "levels": 18,
+            #"levels_source": "2gis",
+            "levels_url":'https://flatinfo.ru/h_info1.asp?hid=211292',
+            "year": 2013,
+            #"year_source": "2gis",
+             "year_url": 'https://flatinfo.ru/h_info1.asp?hid=211292',
+        }
+    )
+
+    '''
+
+
+    '''
+
+    validation_pass = True
+    for data in buildings:
+        if processor.validate_street(data) == False:
+            validation_pass = False
+
+    if not validation_pass:
+        print("street wikidata objects non valid")
+        quit()
+    for data in buildings:
+        building_wikidata = processor.create_wikidata_building(data, dry_mode=args.dry_run)
+        category_name = processor.create_commonscat(
+            building_wikidata, dry_mode=args.dry_run
+        )

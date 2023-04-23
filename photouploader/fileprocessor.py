@@ -392,6 +392,17 @@ class Fileprocessor:
 {{Location|55.769326012498155|37.68742327500131}}
 {{Taken with|Pentax K10D|sf=1|own=1}}
 
+{{Photo Information
+ |Model                 = Olympus mju II
+ |ISO                   = 200
+ |Lens                  = 
+ |Focal length          = 35
+ |Focal length 35mm     = 35
+ |Support               = freehand
+ |Film                  = Kodak Gold 200
+ |Developer             = C41
+ }}
+ 
     == {{int:license-header}} ==
     {{self|cc-by-sa-4.0|author=Артём Светлов}}
 
@@ -448,13 +459,7 @@ class Fileprocessor:
                 )
                 text += st
         text += self.get_camera_text(filename)
-        """
-        make
-        model
-        f_number
-        lens_model
 
-        """
 
         text = (
             text
@@ -471,14 +476,40 @@ class Fileprocessor:
     
     def get_camera_text(self,filename)->str:
         st = ''
+        
+
+        
         image_exif = self.image2camera_params(filename)
         if image_exif.get("make") is not None and image_exif.get("model") is not None:
             if image_exif.get("make") != "" and image_exif.get("model") != "":
                 make = image_exif.get("make").strip()
                 model = image_exif.get("model").strip()
-                if "OLYMPUS" in make:
-                    make = "Olympus"
+                make = make.capitalize()
                 st = "{{Taken with|" + make + " " + model + "|sf=1|own=1}}" + "\n"
+                
+                """
+                make
+                model
+                f_number
+                lens_model
+
+                """
+        
+                st +='{{Photo Information|Model = '+ make + " " + model 
+                if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
+                    st +='|Lens = '+ image_exif.get("lens_model") 
+                if image_exif.get("f_number",'') != "" and image_exif.get("f_number",'') != "": 
+                    st +='|Aperture = f/'+ str(image_exif.get("f_number")) 
+                st +='}}'+ "\n"
+                
+                cameramodels_dict = {
+        'Pentax corporation PENTAX K10D':'Pentax K10D',
+        'Samsung SM-G7810':'Samsung S20FE 5G',
+        }
+        
+                for camerastring in cameramodels_dict.keys():
+                    if camerastring in st: st = st.replace(camerastring,cameramodels_dict[camerastring])
+                
                 return st
                 
     def image2camera_params(self, path):
