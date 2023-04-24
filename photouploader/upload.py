@@ -17,7 +17,7 @@ parser.add_argument(
     "-dry", "--dry-run", action="store_const", required=False, default=False, const=True
 )
 parser.add_argument(
-    "-verify", action="store_const", required=False, default=False, const=True
+    "--verify", action="store_const", required=False, default=False, const=True
 )
 parser.add_argument(
     "--no-building",

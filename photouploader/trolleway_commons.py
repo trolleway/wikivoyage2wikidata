@@ -195,7 +195,7 @@ class CommonsOps:
             return
 
         assert wikidata.startswith("Q")
-        cmd = ["wd", "generate-template", "--json", wikidata]
+        cmd = ["wd", "generate-template", "--json",            '--no-minimize',  wikidata]
         response = subprocess.run(cmd, capture_output=True)
         building_dict_wd = json.loads(response.stdout.decode())
 
@@ -209,12 +209,15 @@ class CommonsOps:
             "wd",
             "generate-template",
             "--json",
-            building_dict_wd["claims"]["P669"]["value"],
+            '--no-minimize',
+            building_dict_wd["claims"]["P669"][0]["value"],
         ]
 
         response = subprocess.run(cmd, capture_output=True)
         street_dict_wd = json.loads(response.stdout.decode())
-        category_street = street_dict_wd["claims"]["P373"]["value"]
+        category_street = street_dict_wd["claims"]["P373"][0]["value"]      
+        category_street +='|'+building_dict_wd["claims"]["P669"][0]['qualifiers']['P670'][0]["value"]
+               
         category_name = building_dict_wd["labels"]["en"]
         year = ""
         decade = ""
@@ -228,11 +231,11 @@ class CommonsOps:
             year_field = "P571"
         if year_field is not None:
             try:
-                if building_dict_wd["claims"][year_field]["value"]["precision"] == 9:
-                    year = building_dict_wd["claims"][year_field]["value"]["time"][0:4]
-                if building_dict_wd["claims"][year_field]["value"]["precision"] == 8:
+                if building_dict_wd["claims"][year_field][0]["value"]["precision"] == 9:
+                    year = building_dict_wd["claims"][year_field][0]["value"]["time"][0:4]
+                if building_dict_wd["claims"][year_field][0]["value"]["precision"] == 8:
                     decade = (
-                        building_dict_wd["claims"][year_field]["value"]["time"][0:3]
+                        building_dict_wd["claims"][year_field][0]["value"]["time"][0:3]
                         + "0"
                     )
             except:
@@ -243,7 +246,7 @@ class CommonsOps:
         assert decade == "" or len(decade) == 4, "invalid decade:" + str(decade)
         levels = 0
         try:
-            levels = building_dict_wd["claims"]["P1101"]["value"]["amount"]
+            levels = building_dict_wd["claims"]["P1101"][0]["value"]["amount"]
         except:
             pass
             # no levels in building
@@ -253,10 +256,10 @@ class CommonsOps:
         category_city = "Moscow"
 
         code = """
-        {{Wikidata infobox}}
-        [[Category:Buildings in %city%]]
-        [[Category:%streetcategory%]]
-        """
+{{Wikidata infobox}}
+[[Category:Buildings in %city%]]
+[[Category:%streetcategory%]]
+"""
 
         if year != "":
             code += "[[Category:Built in %city% in %year%]]" + "\n"
