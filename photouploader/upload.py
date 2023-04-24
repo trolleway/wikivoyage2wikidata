@@ -39,11 +39,12 @@ else:
 
 files = [os.path.join(args.filepath, x) for x in files]
 
+wikidata = fileprocessor.prepare_wikidata_url(args.wikidata)
 
 for filename in files:
     texts = fileprocessor.make_image_texts(
         filename=filename,
-        wikidata=args.wikidata,
+        wikidata=wikidata,
         place_en="Moscow",
         place_ru="Москва",
         no_building=args.no_building,
@@ -56,7 +57,7 @@ for filename in files:
         continue
 
     wikidata_list = list()
-    wikidata_list.append(args.wikidata)
+    wikidata_list.append(wikidata)
     fileprocessor.upload_file(
         filename, texts["name"], texts["text"], verify_description=args.verify
     )

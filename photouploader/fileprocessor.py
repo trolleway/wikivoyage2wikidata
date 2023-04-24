@@ -18,6 +18,13 @@ class Fileprocessor:
     logger = logging.getLogger(__name__)
     pp = pprint.PrettyPrinter(indent=4)
 
+    def prepare_wikidata_url(self,wikidata)->str:
+        # convert string https://www.wikidata.org/wiki/Q4412648 to Q4412648
+        
+        wikidata = str(wikidata).strip()
+        wikidata = wikidata.replace('https://www.wikidata.org/wiki/','')
+        return wikidata
+        
     def upload_file(self, filepath, commons_name, description, verify_description=True):
         # The site object for Wikimedia Commons
         site = pywikibot.Site("commons", "commons")
