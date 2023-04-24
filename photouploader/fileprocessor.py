@@ -504,7 +504,7 @@ class Fileprocessor:
                 
                 cameramodels_dict = {
         'Pentax corporation PENTAX K10D':'Pentax K10D',
-        'Samsung SM-G7810':'Samsung Galaxy S20FE 5G',
+        'Samsung SM-G7810':'Samsung Galaxy S20 FE 5G',
         }
         
                 for camerastring in cameramodels_dict.keys():
