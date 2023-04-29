@@ -40,7 +40,7 @@ else:
 files = [os.path.join(args.filepath, x) for x in files]
 
 wikidata = fileprocessor.prepare_wikidata_url(args.wikidata)
-
+uploaded_paths = list()
 for filename in files:
     texts = fileprocessor.make_image_texts(
         filename=filename,
@@ -62,3 +62,11 @@ for filename in files:
         filename, texts["name"], texts["text"], verify_description=args.verify
     )
     fileprocessor.append_image_descripts_claim(texts["name"], wikidata_list)
+    uploaded_paths.append('https://commons.wikimedia.org/wiki/File:'+texts["name"].replace(' ', '_'))
+    
+if len(uploaded_paths)>1:    
+    print('Uploaded:')
+    for element in uploaded_paths:
+        print(element)
+else:
+    print('Uploaded '+uploaded_paths[0])

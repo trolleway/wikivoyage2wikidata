@@ -7,6 +7,7 @@ import re, pprint, subprocess, json
 from num2words import num2words
 from transliterate import translit
 import argparse
+from simple_term_menu import TerminalMenu
 
 
 class CommonsOps:
@@ -42,7 +43,7 @@ class CommonsOps:
       },
       "aliases": {},
       "claims": {
-        "P31": "Q41176",
+        "P31": ["Q41176"],
         "P17": "Q159",
         "P625":{ 
             "value":{
@@ -107,6 +108,8 @@ class CommonsOps:
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q187491"
                 if 'https://2gis.ru' in data.get('year_url',''):
                     wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q112119515"
+                if 'reformagkh.ru' in data.get('year_url',''):
+                    wd_object["claims"]["P1619"]["references"][0]["P248"] = "Q117323686"
                     
                 if "year_url" in data:
                     wd_object["claims"]["P1619"]["references"][0]["P854"] = data[
@@ -126,6 +129,8 @@ class CommonsOps:
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q187491"
                 if 'https://2gis.ru' in data.get('levels_url',''):
                     wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q112119515"
+                if 'reformagkh.ru' in data.get('levels_url',''):
+                    wd_object["claims"]["P1101"]["references"][0]["P248"] = "Q117323686"
 
             if "levels_url" in data:
                 wd_object["claims"]["P1101"]["references"][0]["P854"] = data["levels_url"]
@@ -138,6 +143,7 @@ class CommonsOps:
             return
 
         cmd = ["wb", "create-entity", "./temp_json_data.json"]
+        print(cmd)
         response = subprocess.run(cmd, capture_output=True)
         if '"success":1' not in response.stdout.decode():
             print("error create wikidata, prorably building in wikidata already crated")
@@ -161,7 +167,6 @@ class CommonsOps:
             # raise ValueError
         else:
             building_dict_wd = json.loads(response.stdout.decode())
-            self.pp.pprint(building_dict_wd)
             return building_dict_wd["entity"]["id"]
 
     def create_commonscat_page(self, name, code) -> bool:
@@ -295,12 +300,41 @@ class CommonsOps:
             self.wikidata_add_commonscat(wikidata, category_name)
 
         return category_name
+        
+    def wikidata_input2id(self,inp)->str:
+        #detect user input string for wikidata
+        #if user print a query - search wikidata
+        #returns wikidata id
+        
+        inp = self.prepare_wikidata_url(inp)
+        if inp.startswith('Q'): return inp
+        
+        # search
+        cmd = ['wb','search',inp,'--json']
+        response = subprocess.run(cmd, capture_output=True)
+        result_wd = json.loads(response.stdout.decode())
+        candidates = list()
+        for element in result_wd:
+            candidates.append(element['id']+' '+element['display']['label']['value']+' '+element['display']['description']['value'])
+        terminal_menu = TerminalMenu(candidates, title="Select street")
+        menu_entry_index = terminal_menu.show()
+        selected_url = result_wd[menu_entry_index]['id']
+        print('selected '+selected_url+' '+result_wd[menu_entry_index]["description"])
+        return selected_url
+            
+        
+        
+    def prepare_wikidata_url(self,wikidata)->str:
+        # convert string https://www.wikidata.org/wiki/Q4412648 to Q4412648
+        
+        wikidata = str(wikidata).strip()
+        wikidata = wikidata.replace('https://www.wikidata.org/wiki/','')
+        return wikidata
 
     def wikidata_add_commonscat(self, wikidata, category_name) -> bool:
         assert wikidata.startswith("Q")
 
         cmd = ["wb", "add-claim", wikidata, "P373", category_name]
-        print(" ".join(cmd))
         response = subprocess.run(cmd, capture_output=True)
         result_wd = json.loads(response.stdout.decode())
 

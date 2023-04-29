@@ -2,6 +2,7 @@ import pywikibot
 import json
 
 from exif import Image
+import exiftool
 from datetime import datetime
 from dateutil import parser
 import os, logging, pprint, subprocess
@@ -506,7 +507,9 @@ class Fileprocessor:
                 if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
                     st +='|Lens = '+ image_exif.get("lens_model") 
                 if image_exif.get("f_number",'') != "" and image_exif.get("f_number",'') != "": 
-                    st +='|Aperture = f/'+ str(image_exif.get("f_number")) 
+                    st +='|Aperture = f/'+ str(image_exif.get("f_number"))
+                if image_exif.get("'focal_length_in_35mm_film'",'') != "" and image_exif.get("'focal_length_in_35mm_film'",'') != "": 
+                    st +='|Focal length 35mm = f/'+ str(image_exif.get("'focal_length_in_35mm_film'")) 
                 st +='}}'+ "\n"
                 
                 cameramodels_dict = {
@@ -522,7 +525,9 @@ class Fileprocessor:
     def image2camera_params(self, path):
         with open(path, "rb") as image_file:
             image_exif = Image(image_file)
-        return image_exif
+        return image_exif  
+        
+
 
     def image2datetime(self, path):
         exiftool_path = "exiftool"
@@ -631,8 +636,10 @@ class Fileprocessor:
         # get all claims of this wikidata objects
         cmd = ["wb", "gt", "--props", "claims", "--json", "--no-minimize", wikidata]
         response = subprocess.run(cmd, capture_output=True)
-        dict_wd = json.loads(response.stdout.decode())
-
+        try:
+            dict_wd = json.loads(response.stdout.decode())
+        except:
+            return None
         # check heritage status of object
         if "P1435" not in dict_wd["claims"]:
             return None
