@@ -92,6 +92,10 @@ class CommonsOps:
             wd_object["claims"]["P625"]["references"] = list()
             wd_object["claims"]["P625"]["references"].append(dict())
             wd_object["claims"]["P625"]["references"][0]["P248"] = "Q936"
+        if "coord_source" in data and data["coord_source"].lower() == "reforma":
+            wd_object["claims"]["P625"]["references"] = list()
+            wd_object["claims"]["P625"]["references"].append(dict())
+            wd_object["claims"]["P625"]["references"][0]["P248"] = "Q117323686"
         wd_object["claims"]["P669"] = {
             "value": data["street_wikidata"],
             "qualifiers": {"P670": data["housenumber"]},
@@ -220,10 +224,13 @@ class CommonsOps:
 
         response = subprocess.run(cmd, capture_output=True)
         street_dict_wd = json.loads(response.stdout.decode())
+        housenumber = building_dict_wd["claims"]["P669"][0]['qualifiers']['P670'][0]["value"]
         category_street = street_dict_wd["claims"]["P373"][0]["value"]      
-        category_street +='|'+building_dict_wd["claims"]["P669"][0]['qualifiers']['P670'][0]["value"]
+        category_street +='|'+housenumber
                
         category_name = building_dict_wd["labels"]["en"]
+        street_name_ru = street_dict_wd["labels"]["ru"]
+        
         year = ""
         decade = ""
         year_field = None
@@ -258,10 +265,13 @@ class CommonsOps:
         assert isinstance(levels, int)
         assert levels == 0 or levels > 0, "invalid levels:" + str(levels)
 
-        category_city = "Moscow"
+        city_en = "Moscow"
+        city_ru = "Москва"
 
         code = """
+{{Object location}}
 {{Wikidata infobox}}
+{{Building address|Country=RU|City=%city_loc%|Street name=%street%|House number=%housenumber%}}
 [[Category:Buildings in %city%]]
 [[Category:%streetcategory%]]
 """
@@ -275,9 +285,12 @@ class CommonsOps:
         if levels > 0:
             code += "[[Category:%levelstr%-story buildings in %city%]]" + "\n"
 
-        code = code.replace("%city%", category_city)
+        code = code.replace("%city%", city_en)
+        code = code.replace("%city_loc%", city_ru)
         code = code.replace("%streetcategory%", category_street)
+        code = code.replace("%street%", street_name_ru)
         code = code.replace("%year%", year)
+        code = code.replace("%housenumber%", housenumber)
         code = code.replace("%decade%", decade)
         if levels > 0 and levels < 21:
             code = code.replace("%levelstr%", str(num2words(levels).capitalize()))

@@ -342,7 +342,7 @@ class Fileprocessor:
     ) -> dict:
         # return file description texts
 
-        assert os.path.isfile(filename)
+        assert os.path.isfile(filename), 'not found '+filename
 
         # obtain exif
         dt_obj = self.image2datetime(filename)
@@ -520,6 +520,8 @@ class Fileprocessor:
                 for camerastring in cameramodels_dict.keys():
                     if camerastring in st: st = st.replace(camerastring,cameramodels_dict[camerastring])
                 
+                if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
+                    st +='[[Category:Taken with '+ image_exif.get("lens_model").replace('[','').replace(']','').replace('f/ ','f/')+']]'+"\n" 
                 return st
                 
     def image2camera_params(self, path):

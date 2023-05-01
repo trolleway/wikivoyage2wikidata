@@ -34,10 +34,11 @@ if os.path.isfile(args.filepath):
     assert os.path.isfile(args.filepath)
 elif os.path.isdir(args.filepath):
     files = os.listdir(args.filepath)
+    files = [os.path.join(args.filepath, x) for x in files]
 else:
     raise Exception("filepath should be file or directory")
 
-files = [os.path.join(args.filepath, x) for x in files]
+
 
 wikidata = fileprocessor.prepare_wikidata_url(args.wikidata)
 uploaded_paths = list()
@@ -68,5 +69,5 @@ if len(uploaded_paths)>1:
     print('Uploaded:')
     for element in uploaded_paths:
         print(element)
-else:
+elif len(uploaded_paths)==1:
     print('Uploaded '+uploaded_paths[0])
