@@ -12,7 +12,7 @@ from pywikibot.specialbots import UploadRobot
 
 class Fileprocessor:
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARNING,
         format="%(asctime)s %(levelname)-8s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
@@ -38,6 +38,7 @@ class Fileprocessor:
             keep_filename=True,  # Keep the filename as is
             verify_description=verify_description,  # Ask for verification of the description
             targetSite=site,  # The site object for Wikimedia Commons
+            chunk_size='100k',
         )
 
         # Try to run the upload robot
@@ -521,7 +522,8 @@ class Fileprocessor:
                     if camerastring in st: st = st.replace(camerastring,cameramodels_dict[camerastring])
                 
                 if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
-                    st +='[[Category:Taken with '+ image_exif.get("lens_model").replace('[','').replace(']','').replace('f/ ','f/')+']]'+"\n" 
+                    st += "{{Taken with|" + image_exif.get("lens_model").replace('[','').replace(']','').replace('f/ ','f/') + "|sf=1|own=1}}" + "\n"
+
                 return st
                 
     def image2camera_params(self, path):
