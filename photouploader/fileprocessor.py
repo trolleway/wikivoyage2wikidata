@@ -3,6 +3,7 @@ import json
 
 from exif import Image
 import exiftool
+
 from datetime import datetime
 from dateutil import parser
 import os, logging, pprint, subprocess
@@ -497,20 +498,24 @@ class Fileprocessor:
                 st = "{{Taken with|" + make + " " + model + "|sf=1|own=1}}" + "\n"
                 
                 """
-                make
-                model
-                f_number
-                lens_model
-
+        self.pp.pprint(metadata)
+        
+        print(metadata.get('model'))
+        print(metadata.get('make'))
+        print(metadata.get('lensmodel'))
+        print(metadata.get('fnumber'))
+        print(metadata.get('focallengthin35mmformat'))
+        #self.pp.pprint(self.image2camera_params_exif_disused(path))
+        
                 """
         
                 st +='{{Photo Information|Model = '+ make + " " + model 
-                if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
-                    st +='|Lens = '+ image_exif.get("lens_model") 
-                if image_exif.get("f_number",'') != "" and image_exif.get("f_number",'') != "": 
-                    st +='|Aperture = f/'+ str(image_exif.get("f_number"))
-                if image_exif.get("'focal_length_in_35mm_film'",'') != "" and image_exif.get("'focal_length_in_35mm_film'",'') != "": 
-                    st +='|Focal length 35mm = f/'+ str(image_exif.get("'focal_length_in_35mm_film'")) 
+                if image_exif.get("lensmodel",'') != "" and image_exif.get("lensmodel",'') != "": 
+                    st +='|Lens = '+ image_exif.get("lensmodel") 
+                if image_exif.get("fnumber",'') != "" and image_exif.get("fnumber",'') != "": 
+                    st +='|Aperture = f/'+ str(image_exif.get("fnumber"))
+                if image_exif.get("'focallengthin35mmformat'",'') != "" and image_exif.get("'focallengthin35mmformat'",'') != "": 
+                    st +='|Focal length 35mm = f/'+ str(image_exif.get("'focallengthin35mmformat'")) 
                 st +='}}'+ "\n"
                 
                 cameramodels_dict = {
@@ -521,15 +526,32 @@ class Fileprocessor:
                 for camerastring in cameramodels_dict.keys():
                     if camerastring in st: st = st.replace(camerastring,cameramodels_dict[camerastring])
                 
-                if image_exif.get("lens_model",'') != "" and image_exif.get("lens_model",'') != "": 
-                    st += "{{Taken with|" + image_exif.get("lens_model").replace('[','').replace(']','').replace('f/ ','f/') + "|sf=1|own=1}}" + "\n"
+                if image_exif.get("lensmodel",'') != "" and image_exif.get("lensmodel",'') != "": 
+                    st += "{{Taken with|" + image_exif.get("lensmodel").replace('[','').replace(']','').replace('f/ ','f/') + "|sf=1|own=1}}" + "\n"
 
                 return st
                 
-    def image2camera_params(self, path):
+    def image2camera_params_0(self, path):
         with open(path, "rb") as image_file:
             image_exif = Image(image_file)
         return image_exif  
+                        
+    def image2camera_params(self, path):
+        with exiftool.ExifToolHelper() as et:
+            metadata = et.get_metadata(path)
+        metadata=metadata[0]
+        
+        new_metadata = dict()
+        for k,v in metadata.items():
+            if ':' not in k: continue
+            new_metadata[k.split(':')[1].lower()]=v
+        metadata = new_metadata
+        return metadata
+        
+
+        return metadata
+    
+
         
 
 
@@ -556,7 +578,27 @@ class Fileprocessor:
                 return None
             return dt_obj
 
-    def image2coords(self, path):
+    def image2coords(self,path):
+        exiftool_metadata = self.image2camera_params(path)
+        lat = round(float(exiftool_metadata.get('gpslatitude')), 6)
+        lon = round(float(exiftool_metadata.get('gpslongitude')), 6)
+    
+        geo_dict = {}
+        geo_dict = {"lat": lat, "lon": lon}
+        if 'gpsimgdirection' in exiftool_metadata:
+            geo_dict["direction"] = round(float(exiftool_metadata.get('gpsimgdirection')))
+            
+        if 'gpsdestlatitude' in exiftool_metadata:    
+            geo_dict["dest_lat"] = round(float(exiftool_metadata.get('gpslatitude')), 6)            
+        if 'gpsdestlongitude' in exiftool_metadata:    
+            geo_dict["dest_lon"] = round(float(exiftool_metadata.get('gpsdestlongitude')), 6)
+            
+        return geo_dict
+    
+    
+    
+    
+    def image2coords0(self, path):
         def dms_to_dd(d, m, s):
             dd = d + float(m) / 60 + float(s) / 3600
             return dd

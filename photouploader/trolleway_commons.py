@@ -325,7 +325,13 @@ class CommonsOps:
         # search
         cmd = ['wb','search',inp,'--json']
         response = subprocess.run(cmd, capture_output=True)
-        result_wd = json.loads(response.stdout.decode())
+        try:
+            result_wd = json.loads(response.stdout.decode())
+        except:
+            self.logger.error('error parce json from wikibase query')
+            self.logger.error(' '.join(cmd))
+            self.logger.error(response.stdout.decode())
+            
         candidates = list()
         for element in result_wd:
             candidates.append(element['id']+' '+element['display']['label']['value']+' '+element['display'].get('description',{'value':''})['value'])
