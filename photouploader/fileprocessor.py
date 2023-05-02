@@ -666,16 +666,15 @@ class Fileprocessor:
         except:
             self.logger.error(' '.join(cmd))
             self.logger.error('error parsing json'+response.stdout.decode())
+            self.logger.error('hack for termux. using hardcoded list of russian cultural heritage types from 2022'
             
-            quit()
-        """
-        dict_wd = [
+            heritage_types = [
     "Q23668083",
     "Q105835744",
     "Q105835766",
     "Q105835774"
-    ]
-        """
+    
+        
         for element in dict_wd["claims"]["P1435"]:
             if element["value"] in heritage_types["RU"]:
                 return dict_wd["claims"]["P1483"][0]["value"]
