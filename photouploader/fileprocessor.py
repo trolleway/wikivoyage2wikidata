@@ -665,7 +665,7 @@ class Fileprocessor:
             heritage_types = {"RU": json.loads(response.stdout.decode())}
         except:
             self.logger.error(' '.join(cmd))
-            self.logger.error('error parsing json':response.stdout.decode())
+            self.logger.error('error parsing json'+response.stdout.decode())
             
             quit()
         """
