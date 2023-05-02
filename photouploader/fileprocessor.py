@@ -38,7 +38,7 @@ class Fileprocessor:
             keep_filename=True,  # Keep the filename as is
             verify_description=verify_description,  # Ask for verification of the description
             targetSite=site,  # The site object for Wikimedia Commons
-            chunk_size='100k',
+            chunk_size=100000,
         )
 
         # Try to run the upload robot
@@ -661,8 +661,13 @@ class Fileprocessor:
             "json",
         ]
         response = subprocess.run(cmd, capture_output=True)
-        heritage_types = {"RU": json.loads(response.stdout.decode())}
-
+        try:
+            heritage_types = {"RU": json.loads(response.stdout.decode())}
+        except:
+            self.logger.error(' '.join(cmd))
+            self.logger.error('error parsing json':response.stdout.decode())
+            
+            quit()
         """
         dict_wd = [
     "Q23668083",

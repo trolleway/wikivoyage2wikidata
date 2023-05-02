@@ -328,7 +328,7 @@ class CommonsOps:
         result_wd = json.loads(response.stdout.decode())
         candidates = list()
         for element in result_wd:
-            candidates.append(element['id']+' '+element['display']['label']['value']+' '+element['display']['description']['value'])
+            candidates.append(element['id']+' '+element['display']['label']['value']+' '+element['display'].get('description',{'value':''})['value'])
         terminal_menu = TerminalMenu(candidates, title="Select street")
         menu_entry_index = terminal_menu.show()
         selected_url = result_wd[menu_entry_index]['id']
