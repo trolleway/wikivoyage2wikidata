@@ -19,6 +19,8 @@ class Fileprocessor:
     )
     logger = logging.getLogger(__name__)
     pp = pprint.PrettyPrinter(indent=4)
+    
+    exiftool_path = "exiftool"
 
     def prepare_wikidata_url(self,wikidata)->str:
         # convert string https://www.wikidata.org/wiki/Q4412648 to Q4412648
@@ -530,6 +532,8 @@ class Fileprocessor:
                     st += "{{Taken with|" + image_exif.get("lensmodel").replace('[','').replace(']','').replace('f/ ','f/') + "|sf=1|own=1}}" + "\n"
 
                 return st
+        else:
+            return ''
                 
     def image2camera_params_0(self, path):
         with open(path, "rb") as image_file:
@@ -537,26 +541,36 @@ class Fileprocessor:
         return image_exif  
                         
     def image2camera_params(self, path):
-        with exiftool.ExifToolHelper() as et:
-            metadata = et.get_metadata(path)
-        metadata=metadata[0]
-        
-        new_metadata = dict()
-        for k,v in metadata.items():
-            if ':' not in k: continue
-            new_metadata[k.split(':')[1].lower()]=v
-        metadata = new_metadata
-        return metadata
-        
+        try:
+            with exiftool.ExifToolHelper() as et:
+                metadata = et.get_metadata(path)
+            metadata=metadata[0]
+            
+            new_metadata = dict()
+            for k,v in metadata.items():
+                if ':' not in k: continue
+                new_metadata[k.split(':')[1].lower()]=v
+            metadata = new_metadata
+            return metadata
+        except:
+            self.logger.info('error while call python exifread. Try get EXIF by call exifread executable')
+            
+            cmd = [self.exiftool_path , path, '-json', '-n']
+            response = subprocess.run(cmd, capture_output=True)
+            metadata = json.loads(response.stdout.decode())
+            
+            metadata=metadata[0]
+            
+            new_metadata = dict()
+            for k,v in metadata.items():
+                new_metadata[k.lower()]=v
+            metadata = new_metadata
+            
 
-        return metadata
-    
-
-        
-
+            return metadata
 
     def image2datetime(self, path):
-        exiftool_path = "exiftool"
+
         with open(path, "rb") as image_file:
             try:
                 image_exif = Image(image_file)
@@ -565,7 +579,7 @@ class Fileprocessor:
                 dt_obj = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
             except:
                 dt_obj = None
-                cmd = [exiftool_path, path, "-datetimeoriginal", "-csv"]
+                cmd = [self.exiftool_path, path, "-datetimeoriginal", "-csv"]
                 exiftool_text_result = subprocess.check_output(cmd)
                 tmp = exiftool_text_result.splitlines()[1].split(b",")
                 if len(tmp) > 1:
