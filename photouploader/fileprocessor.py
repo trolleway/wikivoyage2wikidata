@@ -447,6 +447,9 @@ class Fileprocessor:
         st += "}}\n"
 
         text += st
+        
+        if 'stitch' in filename:
+            text = text + "{{Panorama}}" + "\n"
 
         if geo_dict is not None:
             st = (
@@ -481,7 +484,12 @@ class Fileprocessor:
         )
 
         text = text + "[[Category:" + wd_record["commons"] + "]]" + "\n"
-        text = text + "[[Category:Photographs by Artem Svetlov/Moscow]]" + "\n"
+        
+        text = text + "[[Category:Photographs by Artem Svetlov/"+taken_on_location+"]]" + "\n"
+        if 'ShiftN' in filename:
+            text = text + "[[Category:Corrected with ShiftN]]" + "\n"
+        if 'stitch' in filename:
+            text = text + "[[Category:Photographs by Artem Svetlov/Stitched panoramics]]" + "\n"
 
         return {"name": commons_filename, "text": text}
 
