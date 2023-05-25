@@ -25,8 +25,8 @@ def argparser_prepare(pagename):
     parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' ) 
     parser.add_argument('--region', type=str, required=False, default='Москва', help='use this region' ) 
     
-    parser.add_argument('--subpages',default=False, action='store_true',   help='Display list of subpages in clone mode' )
-    parser.add_argument('--subpage_number',default=False, type=int,  help='clone mode: clone subpage by number' )
+    parser.add_argument('--list-subpages',default=False, action='store_true',   help='Display list of subpages in clone mode' )
+    parser.add_argument('--subpage',default=False, type=int,  help='clone mode: clone subpage by number' )
 
   
     return parser
