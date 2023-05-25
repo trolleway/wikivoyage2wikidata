@@ -48,7 +48,7 @@ parser = argparser_prepare(pagename)
 args = parser.parse_args()
 
 if args.mode == 'clone':
-    model.wikivoyage_page_import_interface(pagename,subpages=args.subpages,subpage_number=args.subpage_number, region=args.region)
+    model.wikivoyage_page_import_interface(pagename,subpages=args.list_subpages,subpage_number=args.subpage, region=args.region)
     
 if args.mode == 'clone-all':
     prefix = args.bulk_clone_prefix
