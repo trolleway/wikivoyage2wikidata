@@ -19,10 +19,10 @@ def argparser_prepare(pagename):
             epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n page set to"+pagename,
             formatter_class=PrettyFormatter)  
     
-    parser.add_argument('mode', type=str, choices=['clone', 'push', 'clone-all', 'push-geo','wdr','wdu'])    
+    parser.add_argument('mode', type=str, choices=['clone', 'push', 'dump-import', 'push-geo','wdr','wdu'])    
     parser.add_argument('-dry', action='store_const', default=False, const=True)    
     parser.add_argument('--allow_same_words', action='store_const', default=False, const=True)    
-    parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for bulk clone' ) 
+    parser.add_argument('--bulk_clone_prefix', type=str, required=False, default='ru:Культурное наследие России/', help='prefix for page list for dump-import mode' ) 
     parser.add_argument('--region', type=str, required=False, default='Москва', help='use this region' ) 
     
     parser.add_argument('--list-subpages',default=False, action='store_true',   help='Display list of subpages in clone mode' )
@@ -50,14 +50,14 @@ args = parser.parse_args()
 if args.mode == 'clone':
     model.wikivoyage_page_import_interface(pagename,subpages=args.list_subpages,subpage_number=args.subpage, region=args.region)
     
-if args.mode == 'clone-all':
+if args.mode == 'dump-import':
     prefix = args.bulk_clone_prefix
     model.wikivoyage_bulk_import_heritage_dump(prefix,dump='dumps-ww/ruwikivoyage-latest-pages-articles.xml')
     #model.wikivoyage_bulk_import_heritage(prefix)
     '''
     
-    time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Москва/"
-    time python3 script.py clone-all --bulk_clone_prefix "ru:Культурное наследие России/Нижегородская область/"
+    time python3 script.py dump-import --bulk_clone_prefix "ru:Культурное наследие России/Москва/"
+    time python3 script.py dump-import --bulk_clone_prefix "ru:Культурное наследие России/Нижегородская область/"
     '''
 
 if args.mode == 'push':
@@ -66,7 +66,6 @@ if args.mode == 'push-geo':
     model.wikivoyage_edit_geodata()
 if args.mode == 'wdr':
     model.read_wd()
-
 if args.mode == 'wdu':
     model.wikivoyage_update_wikidata()
 
