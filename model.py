@@ -13,6 +13,8 @@ import urllib.request
 import time, datetime
 from osgeo import ogr, osr, gdal
 
+import SPARQLWrapper
+from SPARQLWrapper import SPARQLWrapper, JSON
 
 import pywikibot
 from pywikibot import pagegenerators
@@ -35,6 +37,12 @@ class Model():
 
         
         
+    def sparql2dict(self,sparql)->dict:
+        sparql_wrapper = SPARQLWrapper("https://query.wikidata.org/sparql")
+        sparql_wrapper.setQuery(sparql)
+        sparql_wrapper.setReturnFormat(JSON)
+        results = sparql_wrapper.query().convert()
+        return results
 
     def get_nested_dict(self,json,element):
         # taken from https://stackoverflow.com/questions/31033549/nested-dictionary-value-from-key-path
@@ -975,7 +983,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         sql = '''SELECT page, knid, dbid, entity_description, name, name4wikidata FROM wikivoyagemonuments WHERE ready_to_push=1'''
         self.cur.execute(sql)
         monuments = self.cur.fetchall()
+        print(monuments)
         for monument in monuments:
+            print(monument)
             check, reason = self.is_wikivoyage_allow_add_wikidata(monument['page'],wikivoyageid=monument['knid'])
             if not check:
                 print(reason)
@@ -989,7 +999,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                     return
             monuments_list.append(monument)
 
-        pagename = monument['page']
+        
         page_content = self.wikipedia_get_page_content(pagename)
         with open('wikivoyage_page_code.txt', 'w') as file:
             file.write(page_content)
@@ -1349,25 +1359,18 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
 }
     '''
         sparql = sparql.replace('$PAGENAME',pagename)
-        tempfile_sparql = tempfile.NamedTemporaryFile()
-
-        # Open the file for writing.
-        with open(tempfile_sparql.name, 'w') as f:
-        #with open('temp.rq', 'w') as f:
-            f.write(sparql) # where `stuff` is, y'know... stuff to write (a string)
         
-
-        cmd = ['wb', 'sparql', tempfile_sparql.name, '--format', 'json']
-        
-        response = subprocess.run(cmd, capture_output=True)
-
-        dict_wd = json.loads(response.stdout.decode())
+        sparql_dict = self.sparql2dict(sparql)
         try:
-            wikidata_id = dict_wd[0]['item']
+            wikidata_id = sparql_dict['results']['bindings'][0]['item']['value']
+            wikidata_id = wikidata_id.replace('http://www.wikidata.org/entity/','')
             return wikidata_id
         except:
             return None
-        
+            
+
+
+
         
         return ''
         
