@@ -6,3 +6,4 @@ transliterate
 num2words
 exif
 python-dateutil
+SPARQLWrapper

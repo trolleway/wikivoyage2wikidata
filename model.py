@@ -767,6 +767,15 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 fieldname = 'precise',
                 value = 'yes'+"\n"
                 )
+                if 'description' in obj:
+                    page_content = self.change_value_wiki(
+                    page_content,
+                    knid = obj['knid'],
+                    fieldname = 'description',
+                    value = obj['description']
+                    )
+                
+
                 
                 #changeset message
                 for obj_full in objects:
@@ -895,19 +904,27 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             # case: change coordidates
             elif feature_local.GetGeometryRef().Distance(feature_external.GetGeometryRef())>0.0001:
                 ok = True
+            # case: change fields
+            elif feature_local.GetField('description') != feature_external.GetField('description'):
+                ok = True
+                
 
                 #geod = Geodesic.WGS84
                 # parameters: lat1, lon1, lat2, lon2
                 #geod_result = geod.Inverse(feature_local.GetGeometryRef().GetY(), feature_local.GetGeometryRef().GetX(), feature_external.GetGeometryRef().GetY(), feature_external.GetGeometryRef().GetX(),geod.DISTANCE)
                 object_changeset_msg = 'Сдвиг'#+str(round(geod_result['a12'],10)) +' м.'
             if ok:
-                changeset.append({
+                changeset_content = {
                 'knid':feature_local.GetField('knid'),
                 'page':feature_local.GetField('page'),
                 'lat':round(feature_local.GetGeometryRef().GetY(),5),
                 'long':round(feature_local.GetGeometryRef().GetX(),5),
                 'message':object_changeset_msg,
-                })
+                }
+                if feature_local.GetField('description') != feature_external.GetField('description'):
+                    changeset_content['description']=feature_local.GetField('description')
+                
+                changeset.append(changeset_content)
             layer_external.ResetReading()
 
 
