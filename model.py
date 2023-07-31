@@ -426,6 +426,7 @@ values
         
         self.wikivoyage_prepare_batch()
     
+
     def wikivoyage2gdal(self,wikivoyage_objects,pagename,filename, append_mode=False):
         #create vector layer for edit in QGIS
         
@@ -433,7 +434,6 @@ values
         self.logger.debug('append_mode = ',append_mode)
         if not len(wikivoyage_objects)>0: return 0
         
-        fields_blacklist=('lat','long')
         
         gdal.UseExceptions()
 
@@ -452,6 +452,7 @@ values
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
         
+        fields_blacklist=('lat','long')
         if append_mode == False:
             layer = ds.CreateLayer("wikivoyage_heritage", srs, ogr.wkbPoint)
         
@@ -634,7 +635,7 @@ values
         except:
             return None
     
-    def wikivoyage_bulk_import_heritage_dump(self,prefix='Культурное наследие России/',dump='dumps-ww/ruwikivoyage-latest-pages-articles.xml'):
+    def wikivoyage_bulk_import_heritage_dump(self,prefix='Культурное наследие России/',filepath='dumps-ww/ruwikivoyage-latest-pages-articles.xml'):
         prefix = prefix.replace('ru:','') #no such symbols in xml dump 
         geodata_filename = os.path.join('geodata','bulk.gpkg')
         if os.path.isfile(geodata_filename):        os.remove(geodata_filename)
@@ -642,12 +643,48 @@ values
         self.cur.execute(sql) 
         
         import mwxml
-        dump = mwxml.Dump.from_file(open(dump))
+        dump = mwxml.Dump.from_file(open(filepath))
 
         pagenames=list()
         gpkg_created = False
         pages_count = 0
         pages_filtered_count = 0
+        
+        driver_memory = ogr.GetDriverByName('MEMORY')
+        gdalds_memory=driver_memory.CreateDataSource('')
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        layer=gdalds_memory.CreateLayer('points', srs, geom_type=ogr.wkbPoint)
+        
+        
+        fields_blacklist=('lat','long')
+        fields = ('type','precise','name','knid','region','district','municipality','munid','address',
+        'year','description','image','wdid','wiki','commonscat','link','page','status','knid_new','author','protection','document','ready_to_push','complex')
+        layer.CreateField(ogr.FieldDefn('order',ogr.OFTInteger))
+        fld = ogr.FieldDefn('geocode_string',ogr.OFTString)
+        layer.CreateField(fld)             
+        fld = ogr.FieldDefn('link_wikivoyage',ogr.OFTString)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('link_wikidata',ogr.OFTString)
+        #fld.SetWidth(300)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('link_snow',ogr.OFTString)
+        #fld.SetWidth(300)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('link_josm',ogr.OFTString)
+        #fld.SetWidth(300)
+        layer.CreateField(fld)              
+        fld = ogr.FieldDefn('link_geohack',ogr.OFTString)
+        #fld.SetWidth(300)
+        layer.CreateField(fld)        
+        fld = ogr.FieldDefn('no_geo',ogr.OFTInteger) #i've tired use OFSTBoolean, but qgis show it as (1:1)
+        #fld.SetWidth(1)
+        layer.CreateField(fld)
+        for fieldname in fields:
+            if fieldname in fields_blacklist: continue
+            fld = ogr.FieldDefn(fieldname.replace('-','_'),ogr.OFTString)
+            layer.CreateField(fld)
+                
 
         for page in dump:
             pages_count = pages_count + 1
@@ -660,7 +697,52 @@ values
                 self.logger.info(str(pages_filtered_count).rjust(4)+ str(pages_count).rjust(8) +' '+ pagename)
                 wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
 
-                self.wikivoyage2db_v2(wikivoyage_objects,pagename)
+                #add to mem layer
+                cnt=0
+                for row in wikivoyage_objects:
+                    cnt = cnt+1
+                    feature = ogr.Feature(layer.GetLayerDefn())
+                    for fieldname in wikivoyage_objects[0].keys():
+                        feature.SetField(fieldname.replace('-','_'),row.get(fieldname))
+                        #feature.SetField(fieldname.replace('-','_'),'0')
+                    #print(float(row['lat']), float(row['long']))
+                    if row['long'] != '' and row['lat'] != '':
+                        s=0.002
+                        try:
+                            left=round(self.float_force(row['long']),5)-s
+                            right=round(self.float_force(row['long']),5)+s
+                            bottom=round(self.float_force(row['lat']),5)-s
+                            top=round(self.float_force(row['lat']),5)+s
+                            link_josm = 'http://127.0.0.1:8111/load_and_zoom?left={left}&right={right}&top={top}&bottom={bottom}'.format(left=left,right=right,top=top,bottom=bottom)
+                            feature.SetField('link_josm',link_josm)
+                        except:
+                            pass #create field only if coordinates valid
+                        link_geohack = 'https://geohack.toolforge.org/geohack.php?params={lat};{lon}'
+                        link_geohack = link_geohack.format(lat=(row['lat']),lon=(row['long']))
+                        feature.SetField('link_geohack',link_geohack)
+                    if row['knid'] is not None: feature.SetField('link_wikivoyage','https://ru.wikivoyage.org/wiki/'+row['page']+'#'+row['knid'])
+                    if row['knid'] is not None: feature.SetField('link_snow','https://ru-monuments.toolforge.org/snow/index.php?id='+row['knid'])
+                    if 'Q' in row['wdid']: feature.SetField('link_wikidata','https://www.wikidata.org/wiki/'+row['wdid'])
+                    if row['long'] == '':  feature.SetField('no_geo',1)
+                    try:
+                        feature.SetField('geocode_string',row.get('district','')+' '+row.get('municipality','')+' '+row.get('address','') ) 
+                    except:
+                        pass
+                    feature.SetField('order',cnt)
+                    point = ogr.Geometry(ogr.wkbPoint)
+                    try:
+                        point.AddPoint(float(row['long']), float(row['lat']))
+                        feature.SetGeometry(point)
+                    except:
+                        pass
+                        #empty geom
+                    layer.CreateFeature(feature)
+                    feature = None
+                print(layer.GetFeatureCount())
+                continue
+
+
+                #self.wikivoyage2db_v2(wikivoyage_objects,pagename)
 
                 if gpkg_created == False:
                     if os.path.exists(geodata_filename): os.unlink(geodata_filename)
@@ -672,8 +754,19 @@ values
                         gpkg_created = True
                 else:
                     self.wikivoyage2gdal(wikivoyage_objects,pagename,geodata_filename, append_mode=True)
-
-
+        
+        opt = []
+        exp_drv = ogr.GetDriverByName('GPKG')
+        exp_ds = exp_drv.CreateDataSource(geodata_filename, options=opt)
+        
+        layer_out = exp_ds.CopyLayer(layer, 'points')
+        del layer_out
+        del exp_ds
+        del exp_drv
+        
+        del layer
+        del gdalds_memory
+        del driver_memory
 
     def wikivoyage2db(self,pagename):
         pass

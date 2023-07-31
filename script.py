@@ -8,7 +8,7 @@ from model import Model
 
 model = Model()
 
-def argparser_prepare(pagename):
+def argparser_prepare(pagename, dump_path):
 
     class PrettyFormatter(argparse.ArgumentDefaultsHelpFormatter,
         argparse.RawDescriptionHelpFormatter):
@@ -16,7 +16,7 @@ def argparser_prepare(pagename):
 
 
     parser = argparse.ArgumentParser(description='toolset for copy architecture heritage objects from Russian Wikivoyage to Wikidata',
-            epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n page set to"+pagename,
+            epilog="clone: read wikivoyage page to internal database \n push: send ready records from internal database to Wikidata, generate new Wikivoyage page code \n dump-import: import dump "+dump_path+" to internal database and gpkg file  \n page set to "+pagename,
             formatter_class=PrettyFormatter)  
     
     parser.add_argument('mode', type=str, choices=['clone', 'push', 'dump-import', 'push-geo','wdr','wdu'])    
@@ -31,20 +31,11 @@ def argparser_prepare(pagename):
   
     return parser
     
-#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Садов._кольца_до_Фрунзенск.,_Лужнецк.,_Новодев.,_Саввинск.,_Ростов._и_Смолен._наб.'
-#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/За_Садовым_кольцом_от_просп._Мира_до_Стар._Басманной_и_Спартаковской_ул.'
-#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Тверской_до_Бол._Лубянки'
-#pagename = 'Культурное_наследие_России/Москва/Центральный_округ/От_Бол._Полянки_до_Пятницкой'
-#pagename = 'Культурное_наследие_России/Москва/Юго-восточный_округ'
-#pagename = 'Культурное_наследие_России/Москва/Юго-западный_округ'
-#pagename = 'Культурное_наследие_России/Оренбургская_область/Оренбург_(часть_2)'
-#pagename = 'Культурное_наследие_России/Ивановская_область/Южский_район'
-#pagename = 'Культурное_наследие_России/Смоленская_область'
-pagename = 'Культурное_наследие_России/Псковская_область'
-pagename = 'Культурное_наследие_России'
-#pagename = 'Культурное_наследие_России/Москва'
 
-parser = argparser_prepare(pagename)
+pagename = 'Культурное_наследие_России'
+dump_path = 'dumps-ww/ruwikivoyage-latest-pages-articles.xml'
+
+parser = argparser_prepare(pagename,dump_path)
 args = parser.parse_args()
 
 if args.mode == 'clone':
@@ -52,7 +43,7 @@ if args.mode == 'clone':
     
 if args.mode == 'dump-import':
     prefix = args.bulk_clone_prefix
-    model.wikivoyage_bulk_import_heritage_dump(prefix,dump='dumps-ww/ruwikivoyage-latest-pages-articles.xml')
+    model.wikivoyage_bulk_import_heritage_dump(prefix,filepath=dump_path)
     #model.wikivoyage_bulk_import_heritage(prefix)
     '''
     
