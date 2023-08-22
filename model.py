@@ -767,6 +767,8 @@ values
         del layer
         del gdalds_memory
         del driver_memory
+        
+        print('dump import complete. Geodata saved to '+geodata_filename + "\n" + os.path.abspath(geodata_filename))
 
     def wikivoyage2db(self,pagename):
         pass
@@ -1503,10 +1505,17 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             if str(parsed.templates[counter].name).lower().strip() != 'monument': continue 
             obj=dict()
             for argument in parsed.templates[counter].arguments:
-                obj[argument.name]=str(argument.value).replace('\n','').strip()
+                argument_name =  argument.name
+                argument_name = argument.name.strip()
+                
+                obj[argument_name]=str(argument.value).replace('\n','').strip()
+
+                assert not argument_name.startswith(' ')
+
+                
             obj['ready_to_push']=None
             wikivoyage_objects.append(obj)
-            
+ 
         # sanitize input for db
         fields=(
         'type',
