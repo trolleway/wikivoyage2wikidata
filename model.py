@@ -19,6 +19,9 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 import pywikibot
 from pywikibot import pagegenerators
 
+import bz2
+import urllib.request
+
 class Model():
 
 
@@ -635,7 +638,32 @@ values
         except:
             return None
     
+    def wikivoyage_dump_download_unpack(self,url,filepath:str)->bool:
+        
+       # Download archive
+       try:
+          # Read the file inside the .bz2 archive located at url
+          with urllib.request.urlopen(url) as response:
+             with bz2.open(response) as uncompressed:
+                file_content = uncompressed.read()
+
+          # write to file in binary mode 'wb'
+          with open(filepath, 'wb') as f:
+             f.write(file_content)
+             return 0
+
+       except Exception as e:
+          print(e)
+          return 1
     def wikivoyage_bulk_import_heritage_dump(self,prefix='Культурное наследие России/',filepath='dumps-ww/ruwikivoyage-latest-pages-articles.xml'):
+        
+        #download
+        
+        retval = self.wikivoyage_dump_download_unpack('https://dumps.wikimedia.org/ruwikivoyage/latest/ruwikivoyage-latest-pages-articles.xml.bz2',filepath)
+        
+        print(retval)
+
+        
         prefix = prefix.replace('ru:','') #no such symbols in xml dump 
         geodata_filename = os.path.join('geodata','bulk.gpkg')
         if os.path.isfile(geodata_filename):        os.remove(geodata_filename)
@@ -649,6 +677,7 @@ values
         gpkg_created = False
         pages_count = 0
         pages_filtered_count = 0
+        pages_timestamps = list()
         
         driver_memory = ogr.GetDriverByName('MEMORY')
         gdalds_memory=driver_memory.CreateDataSource('')
@@ -691,9 +720,12 @@ values
             if str(page.title).startswith(prefix):
                 pages_filtered_count = pages_filtered_count + 1
                 pagename = page.title
-                
                 for revision in page: # page has one revision in dump
                     page_content = revision.text
+                    
+                    pages_timestamps.append(str(revision.timestamp)[:10])
+
+                    
                 self.logger.info(str(pages_filtered_count).rjust(4)+ str(pages_count).rjust(8) +' '+ pagename)
                 wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
 
@@ -769,6 +801,7 @@ values
         del driver_memory
         
         print('dump import complete. Geodata saved to '+geodata_filename + "\n" + os.path.abspath(geodata_filename))
+        print('last edit of pages is'+str(max(pages_timestamps)))
 
     def wikivoyage2db(self,pagename):
         pass
@@ -806,6 +839,28 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         return values
 
 
+    def paginate_list(self, lst, page_size):
+        # Check if the list and page size are valid
+        if not lst or not isinstance(lst, list):
+            return None
+        if not page_size or not isinstance(page_size, int) or page_size <= 0:
+            return None
+
+        # Calculate the number of pages
+        num_pages = (len(lst) - 1) // page_size + 1
+
+        # Create a list of lists to store the paginated list
+        paginated_list = []
+
+        # Loop through the list and append sublists of page size
+        for i in range(num_pages):
+            start = i * page_size
+            end = min((i + 1) * page_size, len(lst))
+            paginated_list.append(lst[start:end])
+
+        # Return the paginated list
+        return paginated_list
+  
     def wikivoyage_edit_geodata(self):
         #get pagenames from gpkg
         local_objects_gpkg = os.path.join('geodata','points.gpkg')
@@ -834,62 +889,71 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 assert obj.get('lat') is not None
                 assert obj.get('long') is not None
             
+
+
+
+
+
+            CHANGES_PAGE_SIZE = 5
+            changeset_paginated = self.paginate_list(changeset,CHANGES_PAGE_SIZE)
             page_content = self.wikipedia_get_page_content(pagename)
-            
-            objects = self.wikivoyagelist2python(page_content,pagename)
-
-
-
-            names4editnote = list()
-            names4editnote_short = list()
-            
-            for obj in changeset:
-                page_content = self.change_value_wiki(
-                page_content,
-                knid = obj['knid'],
-                fieldname = 'lat',
-                value = obj['lat']
-                )
-                page_content = self.change_value_wiki(
-                page_content,
-                knid = obj['knid'],
-                fieldname = 'long',
-                value = obj['long']
-                )
-                page_content = self.change_value_wiki(
-                page_content,
-                knid = obj['knid'],
-                fieldname = 'precise',
-                value = 'yes'+"\n"
-                )
-                if 'description' in obj:
+            for changeset in changeset_paginated:
+                objects = self.wikivoyagelist2python(page_content,pagename)
+                names4editnote = list()
+                names4editnote_short = list()
+                for obj in changeset:
                     page_content = self.change_value_wiki(
                     page_content,
                     knid = obj['knid'],
-                    fieldname = 'description',
-                    value = obj['description']
+                    fieldname = 'lat',
+                    value = obj['lat']
                     )
-                
+                    page_content = self.change_value_wiki(
+                    page_content,
+                    knid = obj['knid'],
+                    fieldname = 'long',
+                    value = obj['long']
+                    )
+                    page_content = self.change_value_wiki(
+                    page_content,
+                    knid = obj['knid'],
+                    fieldname = 'precise',
+                    value = 'yes'+"\n"
+                    )
+                    if 'description' in obj:
+                        page_content = self.change_value_wiki(
+                        page_content,
+                        knid = obj['knid'],
+                        fieldname = 'description',
+                        value = obj['description']
+                        )
+                    if 'precise' in obj:
+                        page_content = self.change_value_wiki(
+                        page_content,
+                        knid = obj['knid'],
+                        fieldname = 'precise',
+                        value = obj['precise']
+                        )
+                    
+                    #changeset message
+                    for obj_full in objects:
+                        if obj_full['knid']==obj['knid']:
+                            #try:
+                                
+                            names4editnote.append(obj_full['address'][:30].replace('Улица','').replace('улица','')+' '+' '.join(obj_full['name'].split()[:3]))
 
+                            #except:
+                            #    pass
+                with open('wikivoyage_page_code.txt', 'w') as file:
+                    file.write(page_content)
+                # push to wikivoyage
+                site = pywikibot.Site('ru', 'wikivoyage')
+                page = pywikibot.Page(site, pagename)
                 
-                #changeset message
-                for obj_full in objects:
-                    if obj_full['knid']==obj['knid']:
-                        try:
-                            names4editnote.append(obj_full['address'][:30]+' '+' '.join(obj_full['name'].split()[:8]))
-                            names4editnote_short.append(obj_full['address'][:30])
-                        except:
-                            pass
-            with open('wikivoyage_page_code.txt', 'w') as file:
-                file.write(page_content)
-            # push to wikivoyage
-            site = pywikibot.Site('ru', 'wikivoyage')
-            page = pywikibot.Page(site, pagename)
-            
-            wiki_edit_message = 'Координаты '+', '.join(names4editnote)
-            page.text = page_content
-            page.save(wiki_edit_message, minor=False)
-            print('page updated')
+                wiki_edit_message = 'Координаты '+', '.join(names4editnote)
+                page.text = page_content
+                page.save(wiki_edit_message, minor=False)
+                print('page updated')
 
 
     def wikivoyage_edit_geodata0(self):
@@ -1002,6 +1066,8 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             # case: change fields
             elif feature_local.GetField('description') != feature_external.GetField('description'):
                 ok = True
+            elif feature_local.GetField('precise') != feature_external.GetField('precise'):
+                ok = True
                 
 
                 #geod = Geodesic.WGS84
@@ -1012,6 +1078,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 changeset_content = {
                 'knid':feature_local.GetField('knid'),
                 'page':feature_local.GetField('page'),
+                'precise':feature_local.GetField('precise'),
                 'lat':round(feature_local.GetGeometryRef().GetY(),5),
                 'long':round(feature_local.GetGeometryRef().GetX(),5),
                 'message':object_changeset_msg,
