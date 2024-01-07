@@ -1022,6 +1022,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
         
     def gpkg2changeset(self, filename_local, filename_external, pagename) -> list :
         
+        do_set_precise = False
         # read two gpkg, get features with diferent geometry, return list
         assert os.path.isfile(filename_local)
         ds_local = gdal.OpenEx(filename_local,gdal.GA_ReadOnly)
@@ -1059,9 +1060,11 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             # case: create coordinates for object
             if (feature_external.GetGeometryRef() is None and feature_local.GetGeometryRef() is not None):
                 ok = True
+                do_set_precise = True
                 object_changeset_msg = 'Задал координаты'
             # case: change coordidates
             elif feature_local.GetGeometryRef().Distance(feature_external.GetGeometryRef())>0.0001:
+                do_set_precise = True
                 ok = True
             # case: change fields
             elif feature_local.GetField('description') != feature_external.GetField('description'):
@@ -1083,6 +1086,8 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 'long':round(feature_local.GetGeometryRef().GetX(),5),
                 'message':object_changeset_msg,
                 }
+                if do_set_precise:
+                    changeset_content['precise']='yes'
                 if feature_local.GetField('description') != feature_external.GetField('description'):
                     changeset_content['description']=feature_local.GetField('description')
                 
