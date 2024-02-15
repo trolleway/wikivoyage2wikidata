@@ -366,12 +366,13 @@ values
             self.cur.execute(sql,obj)
             self.con.commit()
 
-    def wikivoyage_page_import_interface(self,pagename,subpages=False,subpage_number=None,region='Москва'):
+    def wikivoyage_page_import_interface(self,pagename:str,subpages:bool=False,subpage_number=None,region:str='Москва'):
         if subpages:
             site = pywikibot.Site('ru', 'wikivoyage')
             prefix=pagename+'/'+region
             if not prefix.endswith('/'): prefix=prefix.strip()+'/'
-            pages = pagegenerators.PrefixingPageGenerator(prefix)
+            pages = pagegenerators.PrefixingPageGenerator(prefix, site=site)
+
             pages_count = 0
             for page in pages:
                 pages_count = pages_count + 1
@@ -379,6 +380,7 @@ values
                 pagename = pagename.replace('[[','')
                 pagename = pagename.replace(']]','')
                 print(str(pages_count).rjust(6) +' '+pagename )
+            assert pages_count>0
             return
         
         if subpage_number:
@@ -387,7 +389,7 @@ values
             site = pywikibot.Site('ru', 'wikivoyage')
             prefix=pagename+'/'+region
             if not prefix.endswith('/'): prefix=prefix.strip()+'/'
-            pages = pagegenerators.PrefixingPageGenerator(prefix)
+            pages = pagegenerators.PrefixingPageGenerator(prefix, site=site)
             pages_count = 0
             for page in pages:
                 pages_count = pages_count + 1
@@ -615,7 +617,7 @@ values
  
         site = pywikibot.Site('ru', 'wikivoyage')
         if not prefix.endswith('/'): prefix=prefix.strip()+'/'
-        pages = pagegenerators.PrefixingPageGenerator(prefix)
+        pages = pagegenerators.PrefixingPageGenerator(prefix, site=site)
         pages_count = 0
         for page in pages:
             pages_count = pages_count + 1
