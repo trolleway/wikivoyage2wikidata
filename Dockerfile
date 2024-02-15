@@ -15,6 +15,5 @@ RUN chmod  --recursive 777 /opt/trolleway_wikidata
 WORKDIR /opt/trolleway_wikidata
 COPY requirements.txt requirements.txt
 RUN pip3 install --break-system-packages -r requirements.txt
-RUN pip3 install pyexiftool
 
 CMD ["/bin/bash"]

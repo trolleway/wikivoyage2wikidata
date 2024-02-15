@@ -4,7 +4,7 @@ CREATE TABLE buildings (
 	building TEXT,
 	wikidata_name TEXT
 , city INTEGER, synchonized INTEGER, "addr:text" TEXT, push_ready INTEGER, latlon TEXT, wkt_geom TEXT);
-CREATE TABLE sqlite_sequence(name,seq);
+
 CREATE TABLE wikivoyagemonuments (
 	dbid INTEGER PRIMARY KEY AUTOINCREMENT
 , type TEXT, status TEXT, lat TEXT, long TEXT, precise TEXT, name TEXT, knid TEXT, knid_new TEXT, region TEXT, district TEXT, municipality TEXT, munid TEXT, address TEXT, year TEXT, author TEXT, description TEXT, image TEXT, wdid TEXT, wiki TEXT, commonscat TEXT, protection TEXT, link TEXT, document TEXT, page TEXT, name4wikidata TEXT, address4wikidata TEXT, protection4wikidata TEXT, entity_description TEXT, address_source TEXT, instanceof TEXT, description4wikidata_en TEXT, alias_ru TEXT, ready_to_push INTEGER, instance_of2 TEXT, complex TEXT, validation_message TEXT, page_wikidata_code TEXT);
