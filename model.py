@@ -322,7 +322,11 @@ and wkt_geom is Null;
         for obj in wikivoyage_objects:
             if "complex" not in obj:
                 obj["complex"] = None
-            obj["page_wikidata_code"] = page_wikidata_code
+            if page_wikidata_code is None:
+                obj["page_wikidata_code"] = ""
+            else:
+                obj["page_wikidata_code"] = page_wikidata_code
+            obj["wikidata"] = obj["wdid"]
             sql = """INSERT INTO wikivoyagemonuments 
             (
 type,
@@ -343,6 +347,7 @@ author,
 description,
 image,
 wdid,
+wikidata,
 wiki,
 commonscat,
 protection,
@@ -372,6 +377,7 @@ values
 :description,
 :image,
 :wdid,
+:wikidata,
 :wiki,
 :commonscat,
 :protection,
@@ -453,7 +459,9 @@ values
         sql = "DELETE FROM wikivoyagemonuments"
         self.cur.execute(sql)
 
-        wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+        wikivoyage_objects = self.wikivoyagelist2python(
+            page_content, pagename, read_wikidata=True
+        )
 
         self.wikivoyage2gdal(
             wikivoyage_objects, pagename, os.path.join("geodata", "points.gpkg")
@@ -461,7 +469,7 @@ values
 
         self.wikivoyage2db_v2(wikivoyage_objects, pagename)
 
-        self.wikivoyage_prepare_batch()
+        self.wikivoyage_db_sanitize_fields()
 
     def wikivoyage2gdal(
         self, wikivoyage_objects, pagename, filename, append_mode=False
@@ -544,7 +552,7 @@ values
 
         layer.StartTransaction()
         for row in wikivoyage_objects:
-            print(row)
+
             cnt = cnt + 1
             feature = ogr.Feature(layer.GetLayerDefn())
             assert len(wikivoyage_objects[0].keys()) > 0
@@ -554,7 +562,6 @@ values
                 if name in fieldnames:
                     feature.SetField(name, value)
                 # feature.SetField(fieldname.replace('-','_'),'0')
-            # print(float(row['lat']), float(row['long']))
             if row["long"] != "" and row["lat"] != "":
                 s = 0.002
                 try:
@@ -671,7 +678,6 @@ values
         self.cur.execute("DELETE FROM wd_claims")
         chunks = list(list_by_chunks(wd_objs, 80))
         for chunk in chunks:
-            # print('b')
             # self.cur.execute('BEGIN TRANSACTION')
             for wd_obj in chunk:
                 for prop in wd_obj["claims"].keys():
@@ -759,8 +765,6 @@ values
             "https://dumps.wikimedia.org/ruwikivoyage/latest/ruwikivoyage-latest-pages-articles.xml.bz2",
             filepath,
         )
-
-        print(retval)
 
         prefix = prefix.replace("ru:", "")  # no such symbols in xml dump
         geodata_filename = os.path.join("geodata", "bulk.gpkg")
@@ -977,7 +981,8 @@ values
     def wikivoyage2db(self, pagename):
         pass
 
-    def wikivoyage_prepare_batch(self):
+    def wikivoyage_db_sanitize_fields(self):
+        """sanitaze fields"""
         sql = """
 UPDATE wikivoyagemonuments SET lat=Null WHERE lat='';
 
@@ -1369,9 +1374,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         sql = """SELECT page, knid, dbid, entity_description, name, name4wikidata FROM wikivoyagemonuments WHERE ready_to_push=1"""
         self.cur.execute(sql)
         monuments = self.cur.fetchall()
-        print(monuments)
+
         for monument in monuments:
-            print(monument)
+
             check, reason = self.is_wikivoyage_allow_add_wikidata(
                 monument["page"], wikivoyageid=monument["knid"]
             )
@@ -1863,8 +1868,8 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
     """
         sparql = sparql.replace("$PAGENAME", pagename)
 
-        sparql_dict = self.sparql2dict(sparql)
         try:
+            sparql_dict = self.sparql2dict(sparql)
             wikidata_id = sparql_dict["results"]["bindings"][0]["item"]["value"]
             wikidata_id = wikidata_id.replace("http://www.wikidata.org/entity/", "")
             return wikidata_id
@@ -1873,7 +1878,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
 
         return ""
 
-    def wikivoyagelist2python(self, page_content, pagename) -> dict:
+    def wikivoyagelist2python(
+        self, page_content, pagename, read_wikidata=False
+    ) -> dict:
 
         try:
             parsed = wtp.parse(page_content)
@@ -1921,6 +1928,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             "description",
             "image",
             "wdid",
+            "wikidata",
             "wiki",
             "commonscat",
             "protection",
@@ -1939,7 +1947,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 )
                 if "-" in field:
                     wikivoyage_objects[idx].pop(field, None)
-
+            wikivoyage_objects[idx]["wikdiata_name_en"] = "future implemented"
+            wikivoyage_objects[idx]["wikdiata_name_ru"] = "future implemented"
+            wikivoyage_objects[idx]["wikidata"] = wikivoyage_objects[idx]["wdid"]
         # validate
 
         # complex object
