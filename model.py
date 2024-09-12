@@ -21,6 +21,7 @@ from pywikibot import pagegenerators
 
 import bz2
 import urllib.request
+from tqdm import tqdm
 
 
 class Model:
@@ -31,7 +32,7 @@ class Model:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger = logging.getLogger(__name__)
-    wiki_pages_cache = ""
+    wiki_pages_cache = dict()
 
     def __init__(self):
         dbpath = os.path.join(
@@ -44,6 +45,9 @@ class Model:
         self.con = sqlite3.connect(dbpath)
         self.con.row_factory = sqlite3.Row
         self.cur = self.con.cursor()
+
+    def flush_cache(self):
+        self.wiki_pages_cache = dict()
 
     def sparql2dict(self, sparql) -> dict:
         sparql_wrapper = SPARQLWrapper("https://query.wikidata.org/sparql")
@@ -298,21 +302,26 @@ and wkt_geom is Null;
         cur_buildings.execute(sql, (1, building["buildingid"]))
         self.con.commit()
 
-    def wikipedia_get_page_content(self, pagecode) -> str:
+    def wikipedia_get_page_content(self,pagecode) -> str:
+        site = pywikibot.Site("ru", "wikivoyage")
+        page = pywikibot.Page(site, pagecode)
+
+        return page.get()
+    def wikipedia_get_page_content0(self, pagecode) -> str:
 
         # check cache
         import sys
 
-        if self.wiki_pages_cache != "":
-            return self.wiki_pages_cache
+        if self.wiki_pages_cache.get(pagecode, "") != "":
+            return self.wiki_pages_cache.get(pagecode, "")
 
         pagecode = urllib.parse.quote(pagecode)
         with urllib.request.urlopen(
             "https://ru.wikivoyage.org/wiki/" + pagecode + "?action=raw"
         ) as response:
             txt = response.read().decode("utf-8")
-        self.wiki_pages_cache = txt
-        assert sys.getsizeof(self.wiki_pages_cache) > 250
+        self.wiki_pages_cache[pagecode] = txt
+        assert sys.getsizeof(self.wiki_pages_cache[pagecode]) > 250
 
         return txt
 
@@ -598,14 +607,10 @@ values
             if row["long"] == "":
                 feature.SetField("no_geo", 1)
             try:
-                feature.SetField(
-                    "geocode_string",
-                    row.get("district", "")
-                    + " "
-                    + row.get("municipality", "")
-                    + " "
-                    + row.get("address", ""),
-                )
+                geocode_string = row.get("district", "")+ " "                    + row.get("municipality", "")         + " "                    + row.get("address", "")
+                words = geocode_string.split()
+                geocode_string=(" ".join(sorted(set(words), key=words.index)))
+                feature.SetField("geocode_string",geocode_string)
             except:
                 pass
             feature.SetField("order", cnt)
@@ -913,14 +918,10 @@ values
                     if row["long"] == "":
                         feature.SetField("no_geo", 1)
                     try:
-                        feature.SetField(
-                            "geocode_string",
-                            row.get("district", "")
-                            + " "
-                            + row.get("municipality", "")
-                            + " "
-                            + row.get("address", ""),
-                        )
+                        geocode_string = row.get("district", "")+ " "+ row.get("municipality", "")+ " "+ row.get("address", "")
+                        words = geocode_string.split()
+                        geocode_string=(" ".join(sorted(set(words), key=words.index)))
+                        feature.SetField("geocode_string",geocode_string)
                     except:
                         pass
                     feature.SetField("order", cnt)
@@ -2029,6 +2030,209 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 obj["ready_to_push"] = 0
 
         return wikivoyage_objects
+
+    def process_ask_for_coordinates_filter_nogeo_objects_bydump(self):
+        filename = "cultural_ids4check.json"
+        gpkg_filename = "ruwikivoyage_cultural_heritage_russia.gpkg"
+        with open(filename) as json_file:
+            heritage_ids = json.load(json_file)
+
+        nogeo_dump_features = list()
+
+        # open gpkg
+        ds = gdal.OpenEx(gpkg_filename)
+        layer = ds.GetLayer()
+        layer.SetAttributeFilter("link_geohack IS Null")
+        for feature in layer:
+            record = {"id": feature.GetField("knid"), "page": feature.GetField("page")}
+            nogeo_dump_features.append(record)
+        del feature
+        del layer
+        del ds
+
+        heritage_ids_nogeo = set()
+        heritage_objects_to_check = list()
+        total = len(heritage_ids)
+        i = 0
+        for heritageid in heritage_ids:
+            i = i + 1
+
+            ret = list(
+                filter(lambda feature: feature["id"] == heritageid, nogeo_dump_features)
+            )
+            if len(ret) > 0:
+                # this object has no coordinates in dump
+
+                if heritageid not in heritage_ids_nogeo:
+                    heritage_objects_to_check.append(
+                        {"id": heritageid, "page": ret[0].get("page")}
+                    )
+                heritage_ids_nogeo.add(heritageid)
+                print(f"{i}/{total} {heritageid}")
+
+            """
+            layer.SetAttributeFilter(f'knid="{heritageid}"')
+            geom = None
+            feature = None
+            try:
+                feature = layer.GetNextFeature()
+                geom = feature.GetGeometryRef()
+            except:
+                geom = None
+            if feature is None:
+                continue
+            if geom is None:
+
+                if heritageid not in heritage_ids_nogeo:
+                    heritage_objects_to_check.append(
+                        {"id": heritageid, "page": feature.GetField("page")}
+                    )
+                heritage_ids_nogeo.add(heritageid)
+                print(f"{i}/{total} {heritageid}")
+            else:
+                print(f"{i}/{total} {heritageid} ok")
+            """
+
+        with open("cultural_idsnogeo_uploaded_thatday.json", "w") as file:
+            json.dump(heritage_objects_to_check, file)
+
+    def cultural_idsnogeo_uploaded_thatday_check_online(self):
+        filename = "cultural_idsnogeo_uploaded_thatday.json"
+        self.flush_cache()
+        with open(filename) as json_file:
+            heritage_ids = json.load(json_file)
+        with open('geograph_ask_skip.csv') as csv_file:
+            skip_txt = csv_file.read()
+            
+        for el in sorted(heritage_ids, key=lambda d: d['id']):
+
+            if el["page"] in skip_txt: continue
+            if el["id"] in skip_txt: continue
+            
+            skip_words=['могила','Могила','памятник','церковь','храм','мечеть','доска']
+            
+            
+            pagename = el["page"]
+            page_content = self.wikipedia_get_page_content(pagename)
+            objects = self.wikivoyagelist2python(page_content, pagename)
+            
+            found = False
+            skip = False
+            for row in objects:
+                
+
+                
+                if row["knid"] == el["id"]:
+                    for stopword in skip_words:
+                        if stopword in row["name"].lower().strip():
+                            skip=True
+                
+                    if "." in row.get("lat", ""):
+                        found = True
+                        
+            if found == False and skip == False:
+                
+                print(
+                    "https://ru.wikivoyage.org/wiki/"
+                    + el["page"]
+                    + "#"
+                    + el["id"] + ' ' + row["name"]
+                )
+
+    def petscanjson2heritageidjson(self):
+        """
+        input: JSON from petscan
+        https://petscan.wmcloud.org/?langs_labels_no=&output_compatability=catscan&referrer_name=&sparql=&langs_labels_yes=&min_redlink_count=1&interface_language=en&templates_yes=&links_to_no=&outlinks_any=&ores_type=any&source_combination=&categories=Images_from_Wiki_Loves_Monuments_2024_in_Russia&language=commons&sortorder=ascending&common_wiki=auto&minlinks=&edits%5Banons%5D=both&sitelinks_any=&larger=&show_redirects=both&project=wikimedia&cb_labels_no_l=1&cb_labels_yes_l=1&search_wiki=&only_new=on&pagepile=&common_wiki_other=&sitelinks_no=&search_max_results=500&after=20240904&active_tab=tab_pageprops&search_filter=&ores_prob_from=&links_to_any=&subpage_filter=either&show_soft_redirects=both&before=20240905&page_image=any&min_sitelink_count=&combination=subset&ns%5B6%5D=1&labels_yes=&cb_labels_any_l=1
+        output:
+        JSON list with unique heritage ids
+        """
+        import json
+
+        cultural_heritage_ids = set()
+
+        filename = "petscan.json"
+        with open(filename) as json_file:
+            petscandata = json.load(json_file)
+
+        filesdata = petscandata["*"][0]["a"]["*"]
+        fileids = list()
+        for f in filesdata:
+            fileids.append(f["id"])
+
+        # read files pagetext
+        site = pywikibot.Site("commons", "commons")
+        total = len(fileids)
+        i = 0
+        print(f"total={total}")
+        # pbar = tqdm(total=total)
+        generator = pagegenerators.PagesFromPageidGenerator(fileids, site)
+        for page in generator:
+            i = i + 1
+            wiki_text = page.get()
+            cultural_heritage_id = self.extract_cultural_heritage_id(wiki_text)
+            # pbar.update(i)
+            # pbar.refresh()
+            print(f"{i}/{total} {cultural_heritage_id}")
+            cultural_heritage_ids.add(cultural_heritage_id)
+
+        with open("cultural_ids4check.json", "w") as file:
+            json.dump(list(cultural_heritage_ids), file)
+
+    def extract_cultural_heritage_id(self, wiki_text):
+        # made with microsoft copylot
+        # Regular expression to find the Cultural Heritage Russia template
+        pattern = r"\{\{Cultural Heritage Russia\|(\d+)\}\}"
+        match = re.search(pattern, wiki_text)
+        if match:
+            return match.group(1)
+        return None
+
+    def process_ask_for_set_coordinates(self, date):
+        """
+        disused
+
+        """
+
+        # select photos by upload date AND WLM company
+
+        site = pywikibot.Site("commons", "commons")
+        target_date = datetime.datetime(2024, 5, 5)
+        """
+        https://petscan.wmcloud.org/?combination=subset&before=20230906&after=20230905&only_new=on&cb_labels_yes_l=1&categories=Images_from_Wiki_Loves_Monuments_2023_in_Russia&links_to_all=&search_filter=&sortby=none&search_wiki=&labels_any=&links_to_any=&project=wikimedia&active_tab=tab_pageprops&referrer_name=&ns%5B6%5D=1&sortorder=ascending&langs_labels_any=&language=commons&page_image=any&edits%5Bbots%5D=both&pagepile=&cb_labels_any_l=1&outlinks_no=&cb_labels_no_l=1&max_sitelink_count=&sitelinks_any=&smaller=&ores_prob_from=&wikidata_source_sites=&templates_yes=&since_rev0=&labels_no=&langs_labels_no=&edits%5Banons%5D=both&show_redirects=both&templates_any=&interface_language=en&manual_list_wiki=&maxlinks=&search_max_results=500&referrer_url=
+        """
+
+        petscan_generator = pagegenerators.PetScanPageGenerator(
+            "category:Images from Wiki Loves Monuments 2023 in Russia",
+            site=site,
+            extra_options={"after": "20230905", "before": "20230906"},
+        )
+        for page in petscan_generator:
+            try:
+                url = page.get_file_url()
+            except:
+                continue
+            print(url)
+
+        return 0
+        generator_category = pagegenerators.CategorizedPageGenerator(
+            pywikibot.Category(
+                site, "category:Images from Wiki Loves Monuments 2023 in Russia"
+            ),
+            recurse=False,
+            start=None,
+            total=None,
+            content=False,
+            namespaces=None,
+        )
+
+        date_filter_gen = pagegenerators.EdittimeFilterPageGenerator(
+            generator_category,
+            last_edit_start=None,
+            last_edit_end=None,
+            first_edit_start=datetime.datetime(2023, 9, 4),
+            first_edit_end=datetime.datetime(2023, 9, 5),
+            show_filtered=False,
+        )
 
 
 if __name__ == "__main__":
