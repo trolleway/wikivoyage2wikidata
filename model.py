@@ -409,6 +409,7 @@ values
         subpages: bool = False,
         subpage_number=None,
         region: str = "Москва",
+        read_wikidata=False
     ):
         if subpages:
             site = pywikibot.Site("ru", "wikivoyage")
@@ -446,9 +447,9 @@ values
                     # use this subpage name for import
                     break
 
-        self.wikivoyage_page_import_heritage(pagename)
+        self.wikivoyage_page_import_heritage(pagename,read_wikidata)
 
-    def wikivoyage_page_import_heritage(self, pagename):
+    def wikivoyage_page_import_heritage(self, pagename,read_wikidata):
 
         sql = "SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1"
         self.cur.execute(sql)
@@ -469,7 +470,7 @@ values
         self.cur.execute(sql)
 
         wikivoyage_objects = self.wikivoyagelist2python(
-            page_content, pagename, read_wikidata=True
+            page_content, pagename, read_wikidata=read_wikidata
         )
 
         self.wikivoyage2gdal(
@@ -1891,6 +1892,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         del page_content
         counter = -1
         wikivoyage_objects = list()
+        site = pywikibot.Site("wikidata", "wikidata")
         for template in parsed.templates:
             counter = counter + 1
 
@@ -1948,14 +1950,29 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 )
                 if "-" in field:
                     wikivoyage_objects[idx].pop(field, None)
-            wikivoyage_objects[idx]["wikdiata_name_en"] = "future implemented"
-            wikivoyage_objects[idx]["wikdiata_name_ru"] = "future implemented"
+            wikivoyage_objects[idx]["wikdiata_name_en"] = None
+            wikivoyage_objects[idx]["wikdiata_name_ru"] = None
             wikivoyage_objects[idx]["wikidata"] = wikivoyage_objects[idx]["wdid"]
         # validate
 
         # complex object
         # check if main object already in wikidata
 
+        # wikidata object names
+
+        for idx, obj in enumerate(wikivoyage_objects):
+            if read_wikidata and obj.get("wdid",'').startswith('Q'):
+
+            
+                entity = pywikibot.ItemPage(site, obj.get("wdid"))
+                entity.get()
+                
+                labels_pywikibot = entity.labels.toJSON()
+
+                if 'en' in labels_pywikibot: wikivoyage_objects[idx]["wikdiata_name_en"]=labels_pywikibot['en']['value']
+                if 'ru' in labels_pywikibot: wikivoyage_objects[idx]["wikdiata_name_ru"]=labels_pywikibot['ru']['value']
+                del entity
+            
         for obj in wikivoyage_objects:
             obj["validation_message"] = ""
 
@@ -1970,6 +1987,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 obj["validation_message"] = (
                     "upload frist, this is main object of complex"
                 )
+        
         # check if this part of complex and main object not in wikidata
 
         for obj in wikivoyage_objects:
