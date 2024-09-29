@@ -302,11 +302,12 @@ and wkt_geom is Null;
         cur_buildings.execute(sql, (1, building["buildingid"]))
         self.con.commit()
 
-    def wikipedia_get_page_content(self,pagecode) -> str:
+    def wikipedia_get_page_content(self, pagecode) -> str:
         site = pywikibot.Site("ru", "wikivoyage")
         page = pywikibot.Page(site, pagecode)
 
         return page.get()
+
     def wikipedia_get_page_content0(self, pagecode) -> str:
 
         # check cache
@@ -409,7 +410,7 @@ values
         subpages: bool = False,
         subpage_number=None,
         region: str = "Москва",
-        read_wikidata=False
+        read_wikidata=False,
     ):
         if subpages:
             site = pywikibot.Site("ru", "wikivoyage")
@@ -447,9 +448,9 @@ values
                     # use this subpage name for import
                     break
 
-        self.wikivoyage_page_import_heritage(pagename,read_wikidata)
+        self.wikivoyage_page_import_heritage(pagename, read_wikidata)
 
-    def wikivoyage_page_import_heritage(self, pagename,read_wikidata):
+    def wikivoyage_page_import_heritage(self, pagename, read_wikidata):
 
         sql = "SELECT COUNT(*) AS cnt FROM wikivoyagemonuments WHERE ready_to_push = 1"
         self.cur.execute(sql)
@@ -469,9 +470,14 @@ values
         sql = "DELETE FROM wikivoyagemonuments"
         self.cur.execute(sql)
 
-        wikivoyage_objects = self.wikivoyagelist2python(
+        wikivoyage_objects, commonscat_proposed_changes = self.wikivoyagelist2python(
             page_content, pagename, read_wikidata=read_wikidata
         )
+        if len(commonscat_proposed_changes) > 0:
+            print()
+            print("proposed commonscat changes in wikivoyage from wikidata")
+            for e in commonscat_proposed_changes:
+                print(e)
 
         self.wikivoyage2gdal(
             wikivoyage_objects, pagename, os.path.join("geodata", "points.gpkg")
@@ -608,10 +614,16 @@ values
             if row["long"] == "":
                 feature.SetField("no_geo", 1)
             try:
-                geocode_string = row.get("district", "")+ " "                    + row.get("municipality", "")         + " "                    + row.get("address", "")
+                geocode_string = (
+                    row.get("district", "")
+                    + " "
+                    + row.get("municipality", "")
+                    + " "
+                    + row.get("address", "")
+                )
                 words = geocode_string.split()
-                geocode_string=(" ".join(sorted(set(words), key=words.index)))
-                feature.SetField("geocode_string",geocode_string)
+                geocode_string = " ".join(sorted(set(words), key=words.index))
+                feature.SetField("geocode_string", geocode_string)
             except:
                 pass
             feature.SetField("order", cnt)
@@ -721,7 +733,9 @@ values
             pagename = pagename.replace("]]", "")
 
             page_content = page.text
-            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+            wikivoyage_objects, commonscat_proposed_changes = (
+                self.wikivoyagelist2python(page_content, pagename)
+            )
             self.wikivoyage2db_v2(wikivoyage_objects, pagename)
             if pages_count == 1:
                 if os.path.exists(geodata_filename):
@@ -866,7 +880,9 @@ values
                     + " "
                     + pagename
                 )
-                wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+                wikivoyage_objects, commonscat_proposed_changes = (
+                    self.wikivoyagelist2python(page_content, pagename)
+                )
 
                 # add to mem layer
                 cnt = 0
@@ -919,10 +935,16 @@ values
                     if row["long"] == "":
                         feature.SetField("no_geo", 1)
                     try:
-                        geocode_string = row.get("district", "")+ " "+ row.get("municipality", "")+ " "+ row.get("address", "")
+                        geocode_string = (
+                            row.get("district", "")
+                            + " "
+                            + row.get("municipality", "")
+                            + " "
+                            + row.get("address", "")
+                        )
                         words = geocode_string.split()
-                        geocode_string=(" ".join(sorted(set(words), key=words.index)))
-                        feature.SetField("geocode_string",geocode_string)
+                        geocode_string = " ".join(sorted(set(words), key=words.index))
+                        feature.SetField("geocode_string", geocode_string)
                     except:
                         pass
                     feature.SetField("order", cnt)
@@ -1053,7 +1075,9 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             external_objects_gpkg = os.path.join(tmpdir, "points.gpkg")
 
             page_content = self.wikipedia_get_page_content(pagename)
-            wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+            wikivoyage_objects, commonscat_proposed_changes = (
+                self.wikivoyagelist2python(page_content, pagename, read_wikidata=False)
+            )
             self.wikivoyage2gdal(
                 wikivoyage_objects, pagename, filename=external_objects_gpkg
             )
@@ -1078,8 +1102,11 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
             CHANGES_PAGE_SIZE = 5
             changeset_paginated = self.paginate_list(changeset, CHANGES_PAGE_SIZE)
             page_content = self.wikipedia_get_page_content(pagename)
+            changing_fields_set = set()
             for changeset in changeset_paginated:
-                objects = self.wikivoyagelist2python(page_content, pagename)
+                objects, commonscat_proposed_changes = self.wikivoyagelist2python(
+                    page_content, pagename, read_wikidata=False
+                )
                 names4editnote = list()
                 names4editnote_short = list()
                 for obj in changeset:
@@ -1108,6 +1135,15 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                             fieldname="description",
                             value=obj["description"],
                         )
+                        changing_fields_set.add("description")
+                    if "commonscat" in obj:
+                        page_content = self.change_value_wiki(
+                            page_content,
+                            knid=obj["knid"],
+                            fieldname="commonscat",
+                            value=obj["commonscat"],
+                        )
+                        changing_fields_set.add("commonscat")
                     if "precise" in obj:
                         page_content = self.change_value_wiki(
                             page_content,
@@ -1137,65 +1173,15 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 site = pywikibot.Site("ru", "wikivoyage")
                 page = pywikibot.Page(site, pagename)
 
-                wiki_edit_message = "Координаты " + ", ".join(names4editnote)
+                wiki_edit_message = (
+                    "Координаты "
+                    + ", ".join(changing_fields_set)
+                    + " "
+                    + ", ".join(names4editnote)
+                )
                 page.text = page_content
                 page.save(wiki_edit_message, minor=False)
                 print("page updated")
-
-    def wikivoyage_edit_geodata0(self):
-
-        changeset = self.gpkg2changeset0(
-            filename=os.path.join("geodata", "points.gpkg")
-        )
-        assert changeset is not None
-        assert len(changeset) > 0
-
-        # check if all records from one page
-        pagename = changeset[0]["page"]
-        for obj in changeset:
-            if obj["page"] != pagename:
-                raise ValueError('all records in GPKG must have same "page" value')
-            assert obj.get("lat") is not None
-            assert obj.get("long") is not None
-
-        page_content = self.wikipedia_get_page_content(pagename)
-
-        objects = self.wikivoyagelist2python(page_content, pagename)
-
-        names4editnote = list()
-        names4editnote_short = list()
-
-        for obj in changeset:
-            page_content = self.change_value_wiki(
-                page_content, knid=obj["knid"], fieldname="lat", value=obj["lat"]
-            )
-            page_content = self.change_value_wiki(
-                page_content, knid=obj["knid"], fieldname="long", value=obj["long"]
-            )
-            page_content = self.change_value_wiki(
-                page_content, knid=obj["knid"], fieldname="precise", value="yes" + "\n"
-            )
-
-            # changeset message
-            for obj_full in objects:
-                if obj_full["knid"] == obj["knid"]:
-                    names4editnote.append(
-                        obj_full["address"][:30]
-                        + " "
-                        + " ".join(obj_full["name"].split()[:8])
-                    )
-                    names4editnote_short.append(obj_full["address"][:30])
-
-        with open("wikivoyage_page_code.txt", "w") as file:
-            file.write(page_content)
-        # push to wikivoyage
-        site = pywikibot.Site("ru", "wikivoyage")
-        page = pywikibot.Page(site, pagename)
-
-        wiki_edit_message = "Координаты " + ", ".join(names4editnote)
-        page.text = page_content
-        page.save(wiki_edit_message, minor=False)
-        print("page updated")
 
     def gpkg2changeset(self, filename_local, filename_external, pagename) -> list:
 
@@ -1265,6 +1251,12 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                 "description"
             ):
                 ok = True
+            elif (
+                feature_local.GetField("commonscat")
+                != feature_external.GetField("commonscat")
+                and feature_local.GetField("commonscat").strip() != ""
+            ):
+                ok = True
             elif feature_local.GetField("precise") != feature_external.GetField(
                 "precise"
             ):
@@ -1281,6 +1273,7 @@ UPDATE wikivoyagemonuments SET instance_of2='Q41176' ;
                     "knid": feature_local.GetField("knid"),
                     "page": feature_local.GetField("page"),
                     "precise": feature_local.GetField("precise"),
+                    "commonscat": feature_local.GetField("commonscat"),
                     "lat": round(feature_local.GetGeometryRef().GetY(), 5),
                     "long": round(feature_local.GetGeometryRef().GetX(), 5),
                     "message": object_changeset_msg,
@@ -1704,20 +1697,26 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
             id_position = page_content.index("knid=" + knid)
         # search prev {{
         template_start_position = page_content[0:id_position].rindex("{{")
-        # search next }}
-        template_end_position = (
-            page_content[template_start_position:].index("}}") + template_start_position
-        )
+        # search next }} , but not {{PAGENAME}}
+        template_end_position = (            page_content[template_start_position:].index("}}") + template_start_position        )
+        if page_content[template_start_position:template_end_position].find('{{PAGENAME')>0:
+            print('detect {{PAGENAME}} in code')
+            new_start = page_content[template_start_position:template_end_position].find('{{PAGENAME')+len('{{PAGENAME}}')
+            template_end_position = (            page_content[template_start_position:].index("}}", new_start) + template_start_position        )
         # search target field
 
         assert template_start_position > 0
         assert template_end_position > 0
         assert template_end_position > template_start_position
 
-        field_pos = (
-            page_content[template_start_position:template_end_position].index(fieldname)
-            + template_start_position
-        )
+        try:
+            field_pos = (
+                page_content[template_start_position:template_end_position].index(fieldname)
+                + template_start_position
+            )
+        except ValueError:
+            print(f'invalid wiki code at {knid} , mot find {fieldname} in  '+page_content[template_start_position:template_end_position] )
+            raise
 
         # search '=' position of target field
         field_value_pos = (
@@ -1839,7 +1838,9 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 + str(page_content.count(wikivoyageid)),
             )
 
-        wikivoyage_objects = self.wikivoyagelist2python(page_content, pagename)
+        wikivoyage_objects, commonscat_proposed_changes = self.wikivoyagelist2python(
+            page_content, pagename
+        )
         for obj in wikivoyage_objects:
             if obj["knid"] == wikivoyageid:
                 if obj["wdid"] is not None and "Q" in obj["wdid"].upper():
@@ -1960,19 +1961,83 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
 
         # wikidata object names
 
+        pbar = tqdm(total=len(wikivoyage_objects))
+        # totalw=len(wikivoyage_objects)
+        if read_wikidata:
+            print("read wikidata labels")
+        commonscat_proposed_changes = list()
         for idx, obj in enumerate(wikivoyage_objects):
-            if read_wikidata and obj.get("wdid",'').startswith('Q'):
+            pbar.update(1)
+            # try:
+            if (
+                read_wikidata
+                and obj is not None
+                and obj.get("wdid", "") is not None
+                and obj.get("wdid", "").startswith("Q")
+            ):
+                # print(f'{idx}/{totalw}')
 
-            
                 entity = pywikibot.ItemPage(site, obj.get("wdid"))
                 entity.get()
-                
-                labels_pywikibot = entity.labels.toJSON()
 
-                if 'en' in labels_pywikibot: wikivoyage_objects[idx]["wikdiata_name_en"]=labels_pywikibot['en']['value']
-                if 'ru' in labels_pywikibot: wikivoyage_objects[idx]["wikdiata_name_ru"]=labels_pywikibot['ru']['value']
+                labels_pywikibot = entity.labels.toJSON()
+                # if wikidata commons category is different from wikivoyage commons category: prepare data for update wikivoyage page
+                claims = entity.toJSON()["claims"]
+                sitelinks = entity.toJSON().get("sitelinks", dict())
+
+                if "en" in labels_pywikibot:
+                    wikivoyage_objects[idx]["wikdiata_name_en"] = labels_pywikibot[
+                        "en"
+                    ]["value"]
+                if "ru" in labels_pywikibot:
+                    wikivoyage_objects[idx]["wikdiata_name_ru"] = labels_pywikibot[
+                        "ru"
+                    ]["value"]
+
+                wikivoyage_commonscat = wikivoyage_objects[idx]["commonscat"]
+                if obj.get("wdid") == "Q112047390":
+                    pass
+
+                commonscat_changing = False
+
+                if "P373" in claims:
+                    text = claims["P373"][0]["mainsnak"]["datavalue"]["value"]
+                    if (
+                        "Cultural heritage monuments in" not in text
+                        and text.strip() != ""
+                        and text != wikivoyage_objects[idx]["commonscat"]
+                    ):
+                        wikivoyage_objects[idx]["commonscat"] = claims["P373"][0][
+                            "mainsnak"
+                        ]["datavalue"]["value"]
+                        commonscat_changing = True
+                if "commonswiki" in sitelinks:
+                    text = sitelinks["commonswiki"]["title"].replace("Category:", "")
+                    if (
+                        "Cultural heritage monuments in" not in text
+                        and text.strip() != ""
+                        and text != wikivoyage_objects[idx]["commonscat"]
+                    ):
+                        wikivoyage_objects[idx]["commonscat"] = text
+                        commonscat_changing = True
+
+                if commonscat_changing:
+                    commonscat_proposed_changes.append(
+                        {
+                            "name": wikivoyage_objects[idx]["wikdiata_name_ru"],
+                            "from": wikivoyage_commonscat,
+                            "to": wikivoyage_objects[idx]["commonscat"],
+                        }
+                    )
+
+                pbar.set_description(labels_pywikibot.get("en", {"value": ""})["value"])
                 del entity
-            
+            # except:
+            #    print(f'skip record {idx}')
+            #    print(obj)
+        print("wikidata read end")
+        del pbar
+
         for obj in wikivoyage_objects:
             obj["validation_message"] = ""
 
@@ -1987,7 +2052,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 obj["validation_message"] = (
                     "upload frist, this is main object of complex"
                 )
-        
+
         # check if this part of complex and main object not in wikidata
 
         for obj in wikivoyage_objects:
@@ -2047,7 +2112,7 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
                 obj["validation_message"] += "non unique coordinates"
                 obj["ready_to_push"] = 0
 
-        return wikivoyage_objects
+        return wikivoyage_objects, commonscat_proposed_changes
 
     def process_ask_for_coordinates_filter_nogeo_objects_bydump(self):
         filename = "cultural_ids4check.json"
@@ -2119,42 +2184,53 @@ ORDER BY CAST(replace(wdid,'Q','') as int);
         self.flush_cache()
         with open(filename) as json_file:
             heritage_ids = json.load(json_file)
-        with open('geograph_ask_skip.csv') as csv_file:
+        with open("geograph_ask_skip.csv") as csv_file:
             skip_txt = csv_file.read()
-            
-        for el in sorted(heritage_ids, key=lambda d: d['id']):
 
-            if el["page"] in skip_txt: continue
-            if el["id"] in skip_txt: continue
-            
-            skip_words=['могила','Могила','памятник','церковь','храм','мечеть','доска']
-            
-            
+        for el in sorted(heritage_ids, key=lambda d: d["id"]):
+
+            if el["page"] in skip_txt:
+                continue
+            if el["id"] in skip_txt:
+                continue
+
+            skip_words = [
+                "могила",
+                "Могила",
+                "памятник",
+                "церковь",
+                "храм",
+                "мечеть",
+                "доска",
+            ]
+
             pagename = el["page"]
             page_content = self.wikipedia_get_page_content(pagename)
-            objects = self.wikivoyagelist2python(page_content, pagename)
-            
+            objects, commonscat_proposed_changes = self.wikivoyagelist2python(
+                page_content, pagename
+            )
+
             found = False
             skip = False
             for row in objects:
-                
 
-                
                 if row["knid"] == el["id"]:
                     for stopword in skip_words:
                         if stopword in row["name"].lower().strip():
-                            skip=True
-                
+                            skip = True
+
                     if "." in row.get("lat", ""):
                         found = True
-                        
+
             if found == False and skip == False:
-                
+
                 print(
                     "https://ru.wikivoyage.org/wiki/"
                     + el["page"]
                     + "#"
-                    + el["id"] + ' ' + row["name"]
+                    + el["id"]
+                    + " "
+                    + row["name"]
                 )
 
     def petscanjson2heritageidjson(self):
