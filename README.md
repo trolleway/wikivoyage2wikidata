@@ -43,7 +43,7 @@ docker run --rm -v "${PWD}:/opt/trolleway_wikidata" -v "${PWD}/wikibase-cli:/roo
 
 ```
 
-# Addding coordinates to Russian Wikivoyage Heritage lists
+## Append coordinates to Russian Wikivoyage Heritage lists
 
 Source data of Russian Wikivoyage heritage list organized ad hierarchy of pages in Wikimedia engine.
 This command prints list of subpages for region
@@ -70,4 +70,15 @@ Save changes in gpkg file, and close project in QGIS, to release locking of sqli
 Run push-geo command for change objects in page on Wikvoyage. At frist run wikibase-cli ask and save you username and password.
 ```
 python3 script.py --region "Приморский край" --subpage 10 push-geo
+```
+
+## Create wikidata objects from Russian Wikivoyage heritage lists 
+
+Wikivoyage users ask to use their in-house service instead, https://ru-monuments.toolforge.org/snow/index.php?id=6330122000
+
+## Convert Russian Wikivoyage heritage objects dump to Geopackage file
+
+This command download latest dump and convert it to GeoPackage file
+```
+python3 script.py dump-import
 ```
