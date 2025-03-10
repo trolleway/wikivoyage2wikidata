@@ -306,9 +306,15 @@ and wkt_geom is Null;
         site = pywikibot.Site("ru", "wikivoyage")
         page = pywikibot.Page(site, pagecode)
 
-        return page.get()
-
-    def wikipedia_get_page_content0(self, pagecode) -> str:
+        try:
+            result = page.get(force=False, get_redirect=True)
+        except:
+            result = self.wikipedia_get_page_content_raw(pagecode)
+        
+        return result
+        
+        
+    def wikipedia_get_page_content_raw(self, pagecode) -> str:
 
         # check cache
         import sys
@@ -478,7 +484,8 @@ values
             print("proposed commonscat changes in wikivoyage from wikidata")
             for e in commonscat_proposed_changes:
                 print(e)
-
+        
+        if os.path.isfile(os.path.join("geodata", "points.gpkg")): os.remove(os.path.join("geodata", "points.gpkg"))
         self.wikivoyage2gdal(
             wikivoyage_objects, pagename, os.path.join("geodata", "points.gpkg")
         )
