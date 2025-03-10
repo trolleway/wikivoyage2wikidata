@@ -43,49 +43,42 @@ docker run --rm -v "${PWD}:/opt/trolleway_wikidata" -v "${PWD}/wikibase-cli:/roo
 
 ```
 
+## Append coordinates to Russian Wikivoyage Heritage lists
+
+Source data of Russian Wikivoyage heritage list organized ad hierarchy of pages in Wikimedia engine.
+This command prints list of subpages for region
 ```
-python3 script.py clone
-python3 script.py push
+python3 script.py --region "Приморский край" --list-subpages clone
+
+
+...
+     9 Культурное наследие России/Приморский край/Владивосток (часть 1)
+    10 Культурное наследие России/Приморский край/Владивосток (часть 2)
+    11 Культурное наследие России/Приморский край/Владивосток (часть 3)
+    12 Культурное наследие России/Приморский край/Дальнегорск
+    13 Культурное наследие России/Приморский край/Дальнереченск
+...
+```
+Clone command convert one page to GeoPackage file for QGIS software
+```
+python3 script.py --region "Приморский край" --subpage 10 clone
+```
+Now open geodata/points.gpkg in QGIS as vector layer. All objects from page mapped as vector features. Some of them has empty geometry. 
+Locate this features in atribute table, and use "Add Part" button for create geometry for feature. You can change field 'Description' too.
+Save changes in gpkg file, and close project in QGIS, to release locking of sqlite database. 
+
+Run push-geo command for change objects in page on Wikvoyage. At frist run wikibase-cli ask and save you username and password.
+```
+python3 script.py --region "Приморский край" --subpage 10 push-geo
 ```
 
+## Create wikidata objects from Russian Wikivoyage heritage lists 
 
-# SQL helper queries
+Wikivoyage users ask to use their in-house service instead, https://ru-monuments.toolforge.org/snow/index.php?id=6330122000
 
-todo: automate and move to model.py
+## Convert Russian Wikivoyage heritage objects dump to Geopackage file
 
+This command download latest dump and convert it to GeoPackage file
 ```
-UPDATE wikivoyagemonuments SET address='Москва, ' || address;
-UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Москве, памятник архитектуры' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Москве. Памятник архитектуры.' WHERE name like '%града%';
-
-UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Moscow' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Moscow.' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%Ворота%' and name not like '%оротами%';
-
-
-
-
-
-UPDATE wikivoyagemonuments SET address='Павлово, ' || address;
-UPDATE wikivoyagemonuments SET entity_description=name || '. Историческое здание в Павлово, памятник архитектуры' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET entity_description=name || '. Ограда исторического здания в Павлово. Памятник архитектуры.' WHERE name like '%града%';
-
-UPDATE wikivoyagemonuments SET description4wikidata_en ='Historical building in Pavlovo' WHERE name not like '%града%';
-UPDATE wikivoyagemonuments SET description4wikidata_en='Fence of historical building in Pavlovo.' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q148571' WHERE name like '%града%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q607241' WHERE name like '%причта%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q1497364' WHERE name like '%самбль%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q16970' WHERE name like '%ерковь%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q64627814' WHERE name like '%садьба%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q274153' WHERE name like '%Водонапорная башня%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q22698' WHERE name like '%парк%'  or name like '%Парк%';
-UPDATE wikivoyagemonuments SET instance_of2 ='Q53060' WHERE name like '%Ворота%' and name not like '%оротами%';
-
+python3 script.py dump-import
 ```
